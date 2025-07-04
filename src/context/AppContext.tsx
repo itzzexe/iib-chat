@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode, useCallback } from 'react';
 import { AppState, User, Chat, Message, PendingUser, UserSettings, FileUpload, SearchResult, BroadcastMessage, AppScreen } from '../types';
 import dataService from '../services/dataService';
 import { toast } from 'react-hot-toast';
@@ -35,7 +35,7 @@ interface AppContextValue extends AppState {
   updateUserStatus: (status: 'online' | 'offline' | 'away' | 'busy') => Promise<void>;
   searchMessages: (query: string) => void;
   archiveChat: (chatId: string) => Promise<void>;
-  markChatAsRead: (chatId: string, messageIds: string[]) => Promise<void>;
+  markChatAsRead: (chatId: string) => Promise<void>;
   
   // Manager functions
   approvePendingUser: (userId: string) => Promise<void>;
@@ -337,10 +337,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_LOADING', payload: true });
         
         // Check if user is logged in (has token)
-        const token = localStorage.getItem('token');
+        const storedToken = localStorage.getItem('token');
         const storedUser = localStorage.getItem('user');
         
-        if (token && storedUser) {
+        if (storedToken && storedUser) {
           try {
             const user = JSON.parse(storedUser);
             dispatch({ type: 'SET_CURRENT_USER', payload: user });
@@ -416,7 +416,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     loadInitialData();
-  }, []);
+  }, [state.activeChat]);
 
   // Apply dark mode
   useEffect(() => {
@@ -435,7 +435,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return false;
       }
       
-      const { user, token } = loginResult;
+      const { user } = loginResult;
       
       // Set current user
       dispatch({ type: 'SET_CURRENT_USER', payload: user });
@@ -505,12 +505,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setReplyingTo(null);
   };
 
-  const sendMessage = async (chatId: string, content: string, type: 'text' | 'file' | 'announcement' = 'text', file?: FileUpload) => {
+  const sendMessage = async (chatId: string, content: string, type: 'text' | 'file' | 'announcement' = 'text') => {
     if (!state.currentUser) return;
 
     try {
       // Send message via API
-      const sentMessage = await dataServiceAPI.sendMessage({
+      await dataServiceAPI.sendMessage({
         chatId,
         content,
         type,
@@ -618,10 +618,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const setActiveChat = (chatId: string | null) => {
+  const setActiveChat = useCallback((chatId: string | null) => {
     dispatch({ type: 'SET_ACTIVE_CHAT', payload: chatId });
     if (chatId) {
-      markChatAsRead(chatId, []);
+      markChatAsRead(chatId);
       
       // Load messages for this chat if not loaded
       if (!state.messages[chatId]) {
@@ -634,7 +634,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       }
     }
-  };
+  }, [state.messages]);
 
   const setCurrentScreen = (screen: AppScreen) => {
     dispatch({ type: 'SET_CURRENT_SCREEN', payload: screen });
@@ -718,6 +718,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const performSearch = async (query: string) => {
+    if (!query) {
+      dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
+      return;
+    }
+    try {
+      const results = await dataServiceAPI.searchMessages(query);
+      dispatch({ type: 'SET_SEARCH_RESULTS', payload: results });
+      setCurrentScreen('search-results');
+    } catch (error) {
+      console.error("Search failed:", error);
+      toast.error("Search failed. Please try again.");
+    }
+  };
+
   const searchMessages = (query: string) => {
     // This function now just triggers the search
     performSearch(query);
@@ -737,7 +752,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const markChatAsRead = async (chatId: string, messageIds: string[]) => {
+  const markChatAsRead = async (chatId: string) => {
     try {
       const chat = state.chats.find(c => c.id === chatId);
       if (chat && chat.unreadCount > 0) {
@@ -887,21 +902,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await dataServiceAPI.markMessagesAsRead(chatId, messageIds);
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
-    }
-  };
-
-  const performSearch = async (query: string) => {
-    if (!query) {
-      dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
-      return;
-    }
-    try {
-      const results = await dataServiceAPI.searchMessages(query);
-      dispatch({ type: 'SET_SEARCH_RESULTS', payload: results });
-      setCurrentScreen('search-results');
-    } catch (error) {
-      console.error("Search failed:", error);
-      toast.error("Search failed. Please try again.");
     }
   };
 
