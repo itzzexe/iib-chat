@@ -1,267 +1,286 @@
-# IIB Chat - منصة تواصل داخلية متكاملة
+# IIB Chat Application
 
-تطبيق دردشة داخلي حديث وغني بالميزات، مصمم للشركات والمؤسسات لتسهيل التواصل الفوري والتعاون بين فرق العمل.
+A modern, real-time chat application built with React, TypeScript, Node.js, and Socket.IO. Features user management, real-time messaging, file sharing, and administrative controls.
 
-## ✨ الميزات الرئيسية
+## 🚀 Features
 
-- **دردشة فورية:** محادثات فردية وجماعية.
-- **صلاحيات المستخدمين:** نظام أدوار (مدير، موظف) مع تحكم كامل للمدراء.
-- **إدارة متقدمة للمدراء:**
-    - لوحة تحكم وإحصائيات.
-    - إشراف على المحادثات الخاصة.
-    - سجل كامل لجميع الأحداث (Audit Log).
-    - إمكانية تغيير صلاحيات المستخدمين وحذفهم.
-- **ميزات الدردشة المتقدمة:**
-    - تعديل وحذف الرسائل.
-    - الرد على رسائل معينة.
-    - مؤشر قراءة الرسائل (✓✓).
-    - مؤشر "الكتابة الآن...".
-    - معاينة الروابط.
-- **إشعارات متنوعة:** إشعارات سطح المكتب، إشعارات صوتية، وإعلانات جماعية.
-- **تخصيص كامل:**
-    - الوضع الليلي والنهاري.
-    - دعم لغات متعددة (الإنجليزية والعربية).
-    - رفع وتغيير الصورة الشخصية.
+### Core Features
+- **Real-time Messaging**: Instant messaging with Socket.IO
+- **User Authentication**: Secure login/registration system
+- **User Management**: Admin approval system for new users
+- **File Sharing**: Upload and share images and documents
+- **Multi-language Support**: Arabic and English interface
+- **Dark/Light Mode**: Toggle between themes
+- **Responsive Design**: Works on desktop and mobile devices
 
-## 🚀 التشغيل السريع
+### Administrative Features
+- **User Approval System**: Managers can approve/reject new registrations
+- **Member Management**: Add, remove, and manage user roles
+- **Private Chat Oversight**: Managers can monitor private conversations
+- **Audit Logging**: Track user actions and system events
+- **Broadcasting**: Send announcements to all users
 
-### المتطلبات الأساسية
-- **Node.js**: نسخة 16 أو أعلى.
-- **MongoDB**: يجب أن تكون قاعدة البيانات تعمل (يمكن استخدام نسخة محلية أو MongoDB Atlas).
+### Technical Features
+- **Real-time Updates**: Live message updates and typing indicators
+- **Emoji Support**: Full emoji picker integration
+- **Message Reactions**: React to messages with emojis
+- **Search Functionality**: Search through messages and users
+- **Notification System**: Browser notifications for new messages
+- **JSON Database**: No MongoDB required - uses local JSON files
 
-### تعليمات التشغيل
-1.  **استنساخ المستودع:**
-    ```bash
-    git clone <repository-url>
-    cd iib-chat
-    ```
+## 🛠️ Technology Stack
 
-2.  **تثبيت تبعيات الواجهة الخلفية:**
-    ```bash
-    cd server
-    npm install
-    ```
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for build tooling
+- **Tailwind CSS** for styling
+- **Socket.IO Client** for real-time communication
+- **React Hot Toast** for notifications
+- **Lucide React** for icons
 
-3.  **تثبيت تبعيات الواجهة الأمامية:**
-    ```bash
-    cd .. 
-    npm install
-    ```
+### Backend
+- **Node.js** with Express
+- **Socket.IO** for real-time communication
+- **JWT** for authentication
+- **bcryptjs** for password hashing
+- **JSON file storage** (no database required)
+- **CORS** and security middleware
 
-4.  **إنشاء ملف `.env`:**
-    - في مجلد `server`، قم بإنشاء ملف جديد باسم `.env`.
-    - انسخ محتوى `.env.example` إليه وعدّل القيم إذا لزم الأمر.
+## 📋 Prerequisites
 
-5.  **تشغيل الواجهة الخلفية:**
-    ```bash
-    # من المجلد الرئيسي للمشروع
-    npm run start:server
-    ```
+Before running the application, ensure you have:
 
-6.  **تشغيل الواجهة الأمامية:**
-    ```bash
-    # من المجلد الرئيسي للمشروع، في نافذة أخرى
-    npm run dev
-    ```
+1. **Node.js** (v16 or higher) - [Download](https://nodejs.org/)
+2. **Git** - [Download](https://git-scm.com/)
 
-7.  **افتح التطبيق:**
-    - اذهب إلى [http://localhost:5173](http://localhost:5173) في متصفحك.
+## 🚀 Quick Start
 
-## 👤 حسابات الدخول
+### Option 1: Using PowerShell Script (Windows)
 
-### حساب المدير الافتراضي
-- **البريد الإلكتروني:** `admin@app.com`
-- **كلمة المرور:** `admin123`
+```powershell
+# Clone the repository
+git clone https://github.com/yourusername/iib-chat.git
+cd iib-chat
 
-## 🛠️ الأوامر المتاحة
-
-- `npm run dev`: تشغيل الواجهة الأمامية.
-- `npm run build`: بناء المشروع للإنتاج.
-- `npm run start:server`: تشغيل الواجهة الخلفية.
-
-## 💻 التقنيات المستخدمة
-- **الواجهة الأمامية:** React, TypeScript, Vite, Tailwind CSS, Socket.io Client
-- **الواجهة الخلفية:** Node.js, Express, MongoDB, Mongoose, Socket.io
-- **المكتبات الرئيسية:** `i18next`, `recharts`, `date-fns`, `multer`
-
-## 🎯 How to Use
-
-### For Managers
-
-1. **User Management**:
-   - Access "User Requests" from the sidebar
-   - Approve or reject new user registrations
-   - Monitor team activity and status
-
-2. **Announcements**:
-   - Send company-wide announcements through the "Team Announcements" chat
-   - Mark important messages as urgent
-   - All team members receive notifications
-
-3. **Chat Management**:
-   - Create group conversations
-   - Archive old conversations
-   - Monitor team communications
-
-### For Employees
-
-1. **Daily Communication**:
-   - Join the "General Discussion" for team conversations
-   - Send direct messages to colleagues
-   - React to messages with emojis
-
-2. **File Sharing**:
-   - Share documents, images, and files (basic implementation)
-   - Preview shared content inline
-   - Download files shared by teammates
-
-3. **Status Management**:
-   - Set your status (Online, Away, Busy, Offline)
-   - See when colleagues are available
-   - Manage notification preferences
-
-## 🔧 Available Scripts
-
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-
-## 🎨 Customization
-
-### Theme Preferences
-- **Auto**: Follows system theme
-- **Light**: Always light mode
-- **Dark**: Always dark mode
-
-### Notification Settings
-- Enable/disable desktop notifications
-- Configure notification sounds
-- Set notification preferences per chat
-
-### Profile Customization
-- Update display name
-- Set profile picture
-- Manage status and availability
-
-## 🚀 Deployment
-
-The application is ready for production deployment. It's been optimized for:
-
-- **Netlify** (recommended)
-- **Vercel**
-- **GitHub Pages**
-- Any static hosting service
-
-### Building for Production
-
-```bash
-npm run build
+# Run the application
+.\start-app-simple.ps1
 ```
 
-The built files will be in the `dist` directory, ready for deployment.
+### Option 2: Manual Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/iib-chat.git
+   cd iib-chat
+   ```
+
+2. **Install dependencies**
+   ```bash
+   # Install frontend dependencies
+   npm install
+
+   # Install backend dependencies
+   cd server
+   npm install
+   cd ..
+   ```
+
+3. **Start the application**
+   
+   **Terminal 1 - Backend:**
+   ```bash
+   cd server
+   npm start
+   ```
+
+   **Terminal 2 - Frontend:**
+   ```bash
+   npm run dev
+   ```
+
+## 🌐 Access the Application
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3000
+- **API Health Check**: http://localhost:3000/api/health
+
+## 🔐 Default Credentials
+
+### Admin Account
+- **Email**: admin@iibchat.com
+- **Password**: admin123
+
+### Test User Account
+You can register new users through the registration form, which will require admin approval.
+
+## 📁 Project Structure
+
+```
+iib-chat/
+├── src/                          # Frontend source code
+│   ├── components/              # React components
+│   │   ├── Admin/              # Admin dashboard components
+│   │   ├── Auth/               # Authentication components
+│   │   ├── Chat/               # Chat-related components
+│   │   ├── Layout/             # Layout components
+│   │   ├── MemberManagement/   # User management components
+│   │   ├── Settings/           # Settings components
+│   │   └── UI/                 # Reusable UI components
+│   ├── context/                # React context providers
+│   ├── services/               # API and utility services
+│   ├── types/                  # TypeScript type definitions
+│   └── main.tsx               # Application entry point
+├── server/                      # Backend source code
+│   ├── config/                 # Configuration files
+│   ├── middleware/             # Express middleware
+│   ├── models/                 # Data models
+│   ├── routes/                 # API routes
+│   ├── services/               # Business logic services
+│   ├── uploads/                # File upload directory
+│   ├── data/                   # JSON database files
+│   └── index-simple.js         # Server entry point
+├── public/                      # Static assets
+│   ├── locales/                # Translation files
+│   └── sounds/                 # Audio files
+└── docs/                       # Documentation
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Create a `.env` file in the `server` directory:
+
+```env
+PORT=3000
+NODE_ENV=development
+MONGODB_URI=mongodb://localhost:27017/iibchat
+JWT_SECRET=your-super-secure-jwt-secret
+FRONTEND_URL=http://localhost:5173
+```
+
+### Database
+
+The application uses JSON files for data storage by default. Files are stored in `server/data/`:
+
+- `users.json` - User accounts
+- `chats.json` - Chat rooms
+- `messages.json` - Chat messages
+- `pending-users.json` - Pending user registrations
+
+## 🎯 Usage
+
+### For Regular Users
+1. Register an account (requires admin approval)
+2. Wait for admin approval
+3. Login and start chatting
+4. Join different chat rooms
+5. Send messages, files, and reactions
+6. Customize settings and profile
+
+### For Administrators
+1. Login with admin credentials
+2. Approve/reject user registrations
+3. Manage user roles and permissions
+4. Monitor private chat conversations
+5. Send system-wide announcements
+6. View audit logs and system statistics
 
 ## 🔒 Security Features
 
-- **Role-based Access Control**: Manager and employee roles
-- **User Approval System**: New registrations require manager approval
-- **Secure Authentication**: Password-protected accounts
-- **Data Persistence**: Local storage with encryption-ready architecture
+- **JWT Authentication**: Secure token-based authentication
+- **Password Hashing**: bcryptjs for secure password storage
+- **CORS Protection**: Configured for specific origins
+- **Rate Limiting**: Prevent API abuse
+- **Input Validation**: Server-side validation for all inputs
+- **XSS Protection**: Sanitized user inputs
+
+## 🌍 Internationalization
+
+The application supports multiple languages:
+- **English** (default)
+- **Arabic** (RTL support)
+
+Translation files are located in `public/locales/`.
 
 ## 📱 Mobile Support
 
-The application is fully responsive and works seamlessly on:
-- Desktop computers
+The application is fully responsive and works on:
+- Desktop browsers
+- Mobile browsers
 - Tablets
-- Mobile phones
-- Progressive Web App (PWA) capabilities
 
-## 🛠️ Technical Stack
+## 🔧 Development
 
-- **Frontend**: React 18 with TypeScript
-- **Styling**: Tailwind CSS
-- **Icons**: Lucide React
-- **Build Tool**: Vite
-- **State Management**: React Context + useReducer
-- **Data Layer**: Service layer architecture (easily replaceable with APIs)
+### Available Scripts
 
-## 🔄 Data Management
+```bash
+# Frontend
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
 
-Currently uses localStorage for data persistence, but the architecture supports easy migration to:
-- REST APIs
-- GraphQL
-- WebSocket real-time connections
-- Database integration
+# Backend
+cd server
+npm start            # Start production server
+npm run dev          # Start development server with nodemon
+```
 
-## 🎉 Getting Support
+### Development Guidelines
 
-1. **Check the application settings** for configuration options
-2. **Contact your system administrator** for user management issues
-3. **Use the admin account** (`iibadmin@iib.com`) for system-level troubleshooting
+1. **Code Style**: Follow TypeScript and React best practices
+2. **Commits**: Use conventional commit messages
+3. **Testing**: Write tests for new features
+4. **Documentation**: Update README for new features
 
-## 📋 Best Practices
+## 🐛 Troubleshooting
 
-### For Administrators
-- Regularly review and approve new user requests
-- Monitor system usage and storage
-- Keep user permissions up to date
+### Common Issues
 
-### For Managers
-- Use announcements for important company updates
-- Encourage team participation in group discussions
-- Set clear communication guidelines
+1. **Port Already in Use**
+   ```bash
+   # Kill process on port 3000
+   netstat -ano | findstr :3000
+   taskkill /PID <PID> /F
+   ```
 
-### For All Users
-- Keep your status updated
-- Use appropriate channels for different types of communication
-- Be respectful in all communications
+2. **Authentication Issues**
+   - Clear browser localStorage
+   - Check JWT secret configuration
+   - Verify token expiration
 
-## 🔄 Current Status
+3. **File Upload Issues**
+   - Check `server/uploads` directory permissions
+   - Verify file size limits
+   - Check CORS configuration
 
-### Completed Features ✅
-- User registration and authentication
-- Admin approval system
-- Real-time messaging simulation
-- Dark/light mode themes
-- User status management
-- Emoji reactions
-- Settings management
-- Responsive design
-- Role-based access control
+## 🤝 Contributing
 
-### In Development 🚧
-- Real-time WebSocket connection
-- Advanced file upload with cloud storage
-- Push notifications
-- Message search functionality
-- User avatars upload
-- Chat history export
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### Planned Features 📅
-- Video/audio calling
-- Screen sharing
-- Message threading
-- Advanced admin analytics
-- Integration with external services
-- Mobile app development
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📞 Support
+
+For support and questions:
+- Create an issue in the GitHub repository
+- Contact the development team
+- Check the documentation in the `docs/` folder
+
+## 🎉 Acknowledgments
+
+- React team for the amazing framework
+- Socket.IO for real-time communication
+- Tailwind CSS for the utility-first CSS framework
+- All contributors and users of this application
 
 ---
 
-**Ready to transform your internal communications?** Start by logging in with the admin account or creating your first manager account to get your team connected!
-
-## 🎯 Production Checklist
-
-Before deploying to production, ensure:
-
-1. ✅ Admin account is properly configured
-2. ✅ User registration flow works correctly
-3. ✅ Approval system functions properly
-4. ✅ All chat features are operational
-5. ✅ Settings and preferences save correctly
-6. ✅ Dark/light mode works across all components
-7. ✅ Responsive design works on all devices
-8. ✅ Error handling is implemented
-9. ✅ Loading states are shown appropriately
-10. ✅ User feedback is provided for all actions
-
-The application is now **production-ready** and fully functional!
+**Made with ❤️ for the IIB community**
