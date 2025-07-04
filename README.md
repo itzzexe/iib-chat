@@ -59,7 +59,7 @@ Before running the application, ensure you have:
 
 ```powershell
 # Clone the repository
-git clone https://github.com/yourusername/iib-chat.git
+git clone https://github.com/itzzexe/iib-chat.git
 cd iib-chat
 
 # Run the application
@@ -70,7 +70,7 @@ cd iib-chat
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/iib-chat.git
+   git clone https://github.com/itzzexe/iib-chat.git
    cd iib-chat
    ```
 
