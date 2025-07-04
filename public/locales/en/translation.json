@@ -1,0 +1,22 @@
+{
+  "login": {
+    "title": "Sign In to Your Account",
+    "subtitle": "Welcome back! Please enter your details.",
+    "emailLabel": "Email Address",
+    "emailPlaceholder": "Enter your email",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "signInButton": "Sign In",
+    "button": "Sign In",
+    "noAccount": "Don't have an account?",
+    "createAccount": "Create one now",
+    "demoAccounts": "Try the demo accounts.",
+    "invalidCredentials": "Invalid email or password.",
+    "footer": "© 2024 IIB Chat. All rights reserved."
+  },
+  "sidebar": {
+    "conversations": "Conversations",
+    "search": "Search messages...",
+    "searchPlaceholder": "Search chats..."
+  }
+} 

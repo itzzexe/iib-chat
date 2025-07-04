@@ -1,0 +1,391 @@
+const express = require('express');
+const { User, PendingUser, UserSettings } = require('../models');
+const { authenticateToken, requireManager } = require('../middleware/auth');
+const { validateObjectId, validateUserSettings } = require('../middleware/validation');
+const { uploadAvatar } = require('../middleware/upload');
+const { logAction } = require('../services/auditLogService');
+
+const router = express.Router();
+
+// Get all approved users
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    const users = await User.find({ isApproved: true })
+      .select('-password')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Get user by ID
+router.get('/:id', authenticateToken, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await User.findById(id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Update user
+router.put('/:id', authenticateToken, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    // Remove sensitive fields from updates
+    delete updates.password;
+    delete updates.role; // Role should be updated via separate endpoint
+    delete updates.isApproved;
+    
+    // Users can only update their own profile unless they're a manager
+    if (req.user.userId !== id && req.user.role !== 'manager') {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      id, 
+      { ...updates, updatedAt: new Date() }, 
+      { new: true, runValidators: true }
+    ).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      data: user
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Update user role (manager only)
+router.patch('/:id/role', authenticateToken, requireManager, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    
+    if (!role || !['manager', 'employee'].includes(role)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid role'
+      });
+    }
+    
+    const user = await User.findById(id);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found' 
+      });
+    }
+    
+    // Prevent changing admin role
+    if (user.email === 'admin@app.com') {
+      return res.status(403).json({
+        success: false,
+        error: 'Cannot change admin role'
+      });
+    }
+    
+    const oldRole = user.role;
+    user.role = role;
+    await user.save();
+    
+    await logAction(req.user.userId, 'user.role.updated', id, { oldRole, newRole: role });
+
+    res.json({
+      success: true,
+      message: 'User role updated successfully',
+      data: user.toJSON()
+    });
+  } catch (error) {
+    console.error('Update user role error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Delete user (manager only)
+router.delete('/:id', authenticateToken, requireManager, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await User.findById(id);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found' 
+      });
+    }
+    
+    // Prevent deleting admin
+    if (user.email === 'admin@app.com') {
+      return res.status(403).json({
+        success: false,
+        error: 'Cannot delete admin user'
+      });
+    }
+    
+    await User.findByIdAndDelete(id);
+    
+    await logAction(req.user.userId, 'user.deleted', id, { deletedUserName: user.name });
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Get pending users (manager only)
+router.get('/pending/list', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const pendingUsers = await PendingUser.find({ status: 'pending' })
+      .select('-password')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      success: true,
+      data: pendingUsers
+    });
+  } catch (error) {
+    console.error('Get pending users error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Approve pending user (manager only)
+router.post('/pending/:id/approve', authenticateToken, requireManager, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const pendingUser = await PendingUser.findById(id);
+    
+    if (!pendingUser) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Pending user not found' 
+      });
+    }
+
+    // Create new user
+    const newUser = new User({
+      name: pendingUser.name,
+      email: pendingUser.email,
+      password: pendingUser.password, // Already hashed
+      role: pendingUser.role,
+      isApproved: true,
+      status: 'offline'
+    });
+
+    await newUser.save();
+    
+    // Remove from pending users
+    await PendingUser.findByIdAndDelete(id);
+
+    await logAction(req.user.userId, 'user.approved', newUser._id, { approvedUserName: newUser.name });
+
+    res.json({
+      success: true,
+      message: 'User approved successfully',
+      data: newUser.toJSON()
+    });
+  } catch (error) {
+    console.error('Approve user error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Reject pending user (manager only)
+router.post('/pending/:id/reject', authenticateToken, requireManager, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await PendingUser.findByIdAndDelete(id);
+    
+    if (!result) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Pending user not found' 
+      });
+    }
+    
+    await logAction(req.user.userId, 'user.rejected', id, { rejectedUserName: result.name });
+
+    res.json({
+      success: true,
+      message: 'User rejected successfully'
+    });
+  } catch (error) {
+    console.error('Reject user error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Get user settings
+router.get('/:id/settings', authenticateToken, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Users can only access their own settings unless they're a manager
+    if (req.user.userId !== id && req.user.role !== 'manager') {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+    
+    let settings = await UserSettings.findOne({ userId: id });
+    
+    // Create default settings if none exist
+    if (!settings) {
+      settings = new UserSettings({ userId: id });
+      await settings.save();
+    }
+    
+    res.json({
+      success: true,
+      data: settings
+    });
+  } catch (error) {
+    console.error('Get user settings error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Update user settings
+router.put('/:id/settings', authenticateToken, validateObjectId(), validateUserSettings, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Users can only update their own settings unless they're a manager
+    if (req.user.userId !== id && req.user.role !== 'manager') {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+    
+    const settings = await UserSettings.findOneAndUpdate(
+      { userId: id },
+      { ...req.body, updatedAt: new Date() },
+      { new: true, upsert: true, runValidators: true }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Settings updated successfully',
+      data: settings
+    });
+  } catch (error) {
+    console.error('Update user settings error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Update user avatar
+router.put('/me/avatar', authenticateToken, uploadAvatar.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded.'
+      });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // The path should be accessible from the frontend
+    const avatarPath = `/uploads/avatars/${req.file.filename}`;
+    user.avatar = avatarPath;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Avatar updated successfully',
+      data: user.toJSON()
+    });
+
+  } catch (error) {
+    console.error('Update avatar error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+module.exports = router; 
