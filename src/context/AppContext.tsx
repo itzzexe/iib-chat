@@ -336,6 +336,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         dispatch({ type: 'SET_LOADING', payload: true });
         
+        // Add a timeout to prevent infinite loading
+        const timeout = setTimeout(() => {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }, 5000);
+        
         // Check if user is logged in (has token)
         const storedToken = localStorage.getItem('token');
         const storedUser = localStorage.getItem('user');
@@ -345,69 +350,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const user = JSON.parse(storedUser);
             dispatch({ type: 'SET_CURRENT_USER', payload: user });
             
-            // Load additional data
-            const [users, chats] = await Promise.all([
-              dataServiceAPI.getUsers(),
-              dataServiceAPI.getChats()
-            ]);
-            
-            dispatch({ type: 'SET_USERS', payload: users });
-            dispatch({ type: 'SET_CHATS', payload: chats });
-            
-            // Add default messages for default chats
-            const defaultMessages: { [chatId: string]: Message[] } = {};
-            
-            // Find general and announcements chats
-            const generalChat = chats.find(c => c.type === 'general');
-            const announcementsChat = chats.find(c => c.type === 'announcements');
-            
-            if (generalChat) {
-              defaultMessages[generalChat.id] = [{
-                id: 'welcome-general',
-                senderId: 'system',
-                senderName: 'System',
-                content: 'Welcome to the General Chat! This is where team members can have casual conversations and share ideas.',
-                timestamp: new Date(),
-                type: 'text',
-                reactions: [],
-                readBy: []
-              }];
-            }
-            
-            if (announcementsChat) {
-              defaultMessages[announcementsChat.id] = [{
-                id: 'welcome-announcements',
-                senderId: 'system',
-                senderName: 'System',
-                content: 'This is the official announcements channel. Only managers can post important updates here.',
-                timestamp: new Date(),
-                type: 'announcement',
-                reactions: [],
-                readBy: []
-              }];
-            }
-            
-            dispatch({ type: 'SET_MESSAGES', payload: defaultMessages });
-            
-            // Select the first chat automatically
-            if (chats.length > 0 && !state.activeChat) {
-              const firstChat = generalChat || chats[0];
-              dispatch({ type: 'SET_ACTIVE_CHAT', payload: firstChat.id });
-            }
-            
-            // Load pending users if manager
-            if (user.role === 'manager') {
-              const pendingUsers = await dataServiceAPI.getPendingUsers();
-              dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+            // Try to load additional data with error handling
+            try {
+              const [users, chats] = await Promise.all([
+                dataServiceAPI.getUsers(),
+                dataServiceAPI.getChats()
+              ]);
+              
+              dispatch({ type: 'SET_USERS', payload: users });
+              dispatch({ type: 'SET_CHATS', payload: chats });
+              
+              // Add default messages for default chats
+              const defaultMessages: { [chatId: string]: Message[] } = {};
+              
+              // Find general and announcements chats
+              const generalChat = chats.find(c => c.type === 'general');
+              const announcementsChat = chats.find(c => c.type === 'announcements');
+              
+              if (generalChat) {
+                defaultMessages[generalChat.id] = [{
+                  id: 'welcome-general',
+                  senderId: 'system',
+                  senderName: 'System',
+                  content: 'Welcome to the General Chat! This is where team members can have casual conversations and share ideas.',
+                  timestamp: new Date(),
+                  type: 'text',
+                  reactions: [],
+                  readBy: []
+                }];
+              }
+              
+              if (announcementsChat) {
+                defaultMessages[announcementsChat.id] = [{
+                  id: 'welcome-announcements',
+                  senderId: 'system',
+                  senderName: 'System',
+                  content: 'This is the official announcements channel. Only managers can post important updates here.',
+                  timestamp: new Date(),
+                  type: 'announcement',
+                  reactions: [],
+                  readBy: []
+                }];
+              }
+              
+              dispatch({ type: 'SET_MESSAGES', payload: defaultMessages });
+              
+              // Select the first chat automatically
+              if (chats.length > 0 && !state.activeChat) {
+                const firstChat = generalChat || chats[0];
+                dispatch({ type: 'SET_ACTIVE_CHAT', payload: firstChat.id });
+              }
+              
+              // Load pending users if manager
+              if (user.role === 'manager') {
+                try {
+                  const pendingUsers = await dataServiceAPI.getPendingUsers();
+                  dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+                } catch (error) {
+                  console.warn('Failed to load pending users:', error);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to load additional data:', error);
+              // If we can't load data, clear the user to show login
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              dispatch({ type: 'SET_CURRENT_USER', payload: null });
             }
           } catch (error) {
             console.error('Failed to load user data:', error);
             // Clear invalid stored data
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            dispatch({ type: 'SET_CURRENT_USER', payload: null });
           }
         }
         
+        clearTimeout(timeout);
       } catch (error) {
         console.error('Failed to load initial data:', error);
       } finally {

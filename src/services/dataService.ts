@@ -113,22 +113,20 @@ export const connectSocket = (userId: string): Promise<Socket> => {
       });
 
       socket.on('connect', () => {
-        console.log('✅ Socket connected:', socket?.id);
         socket?.emit('join-user', userId);
         resolve(socket!);
       });
 
       socket.on('connect_error', (error) => {
-        console.error('❌ Socket connection error:', error);
+        console.error('Socket connection error:', error);
         reject(error);
       });
 
       socket.on('disconnect', (reason) => {
-        console.log('❌ Socket disconnected:', reason);
+        // Socket disconnected - reconnection will be handled automatically
       });
 
       socket.on('reconnect', () => {
-        console.log('🔄 Socket reconnected');
         socket?.emit('join-user', userId);
       });
 
@@ -143,7 +141,6 @@ export const disconnectSocket = (): void => {
   if (socket) {
     socket.disconnect();
     socket = null;
-    console.log('🔌 Socket disconnected');
   }
 };
 
@@ -152,14 +149,12 @@ export const getSocket = (): Socket | null => socket;
 export const joinChat = (chatId: string): void => {
   if (socket?.connected) {
     socket.emit('join-chat', chatId);
-    console.log(`📥 Joined chat: ${chatId}`);
   }
 };
 
 export const leaveChat = (chatId: string): void => {
   if (socket?.connected) {
     socket.emit('leave-chat', chatId);
-    console.log(`📤 Left chat: ${chatId}`);
   }
 };
 

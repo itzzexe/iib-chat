@@ -147,7 +147,26 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// Logout
+app.post('/api/auth/logout', (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
 // ==================== USER ROUTES ====================
+
+// Get current user
+app.get('/api/users/me', authenticateToken, (req, res) => {
+  try {
+    const user = db.users.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const { password, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
 
 // Get all users
 app.get('/api/users', authenticateToken, (req, res) => {
@@ -162,7 +181,7 @@ app.get('/api/users', authenticateToken, (req, res) => {
   }
 });
 
-// Get pending users
+// Get pending users (old endpoint)
 app.get('/api/users/pending', authenticateToken, (req, res) => {
   try {
     if (req.user.role !== 'manager') {
@@ -176,7 +195,21 @@ app.get('/api/users/pending', authenticateToken, (req, res) => {
   }
 });
 
-// Approve user
+// Get pending users (new endpoint expected by frontend)
+app.get('/api/pending-users', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    
+    const pendingUsers = db.pendingUsers.findAll();
+    res.json(pendingUsers);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch pending users' });
+  }
+});
+
+// Approve user (old endpoint)
 app.post('/api/users/:id/approve', authenticateToken, (req, res) => {
   try {
     if (req.user.role !== 'manager') {
@@ -210,8 +243,61 @@ app.post('/api/users/:id/approve', authenticateToken, (req, res) => {
   }
 });
 
-// Reject user
+// Approve user (new endpoint expected by frontend)
+app.post('/api/pending-users/:id/approve', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const pendingUser = db.pendingUsers.findAll().find(u => u.id === req.params.id);
+    if (!pendingUser) {
+      return res.status(404).json({ error: 'Pending user not found' });
+    }
+
+    // Create active user
+    const newUser = db.users.create({
+      name: pendingUser.name,
+      email: pendingUser.email,
+      password: pendingUser.password,
+      role: 'employee',
+      status: 'online',
+      lastSeen: new Date(),
+      avatar: null
+    });
+
+    // Remove from pending
+    db.pendingUsers.delete(req.params.id);
+
+    // Emit event
+    req.io.emit('user-approved', { userId: newUser.id });
+
+    res.json({ success: true, user: newUser });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to approve user' });
+  }
+});
+
+// Reject user (old endpoint)
 app.post('/api/users/:id/reject', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const deleted = db.pendingUsers.delete(req.params.id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'Pending user not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to reject user' });
+  }
+});
+
+// Reject user (new endpoint expected by frontend)
+app.post('/api/pending-users/:id/reject', authenticateToken, (req, res) => {
   try {
     if (req.user.role !== 'manager') {
       return res.status(403).json({ error: 'Access denied' });
@@ -240,6 +326,38 @@ app.get('/api/chats', authenticateToken, (req, res) => {
   }
 });
 
+// Get specific chat
+app.get('/api/chats/:id', authenticateToken, (req, res) => {
+  try {
+    const chat = db.chats.findById(req.params.id);
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+    res.json(chat);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch chat' });
+  }
+});
+
+// Create new chat
+app.post('/api/chats', authenticateToken, (req, res) => {
+  try {
+    const { name, type = 'group', participants = [] } = req.body;
+    
+    const newChat = db.chats.create({
+      name,
+      type,
+      participants: [...participants, req.user.userId],
+      unreadCount: 0,
+      isArchived: false
+    });
+
+    res.json(newChat);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create chat' });
+  }
+});
+
 // Get chat messages
 app.get('/api/chats/:id/messages', authenticateToken, (req, res) => {
   try {
@@ -262,7 +380,8 @@ app.post('/api/chats/:id/messages', authenticateToken, (req, res) => {
       senderName: user.name,
       content,
       type,
-      reactions: []
+      reactions: [],
+      readBy: []
     });
 
     // Emit to chat room
@@ -271,6 +390,235 @@ app.post('/api/chats/:id/messages', authenticateToken, (req, res) => {
     res.json(message);
   } catch (error) {
     res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// ==================== MESSAGE ROUTES ====================
+
+// Get messages for a chat (alternative endpoint)
+app.get('/api/messages/:chatId', authenticateToken, (req, res) => {
+  try {
+    const messages = db.messages.findByChatId(req.params.chatId);
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Send message (alternative endpoint)
+app.post('/api/messages', authenticateToken, (req, res) => {
+  try {
+    const { chatId, content, type = 'text', replyTo } = req.body;
+    const user = db.users.findById(req.user.userId);
+
+    const message = db.messages.create({
+      chatId,
+      senderId: req.user.userId,
+      senderName: user.name,
+      content,
+      type,
+      replyTo,
+      reactions: [],
+      readBy: []
+    });
+
+    // Emit to chat room
+    req.io.to(chatId).emit('receive-message', message);
+
+    res.json(message);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+// Mark messages as read
+app.post('/api/chats/:chatId/messages/read', authenticateToken, (req, res) => {
+  try {
+    const { messageIds } = req.body;
+    // In a real implementation, you would update the readBy array for these messages
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to mark messages as read' });
+  }
+});
+
+// Add reaction to message
+app.post('/api/messages/:messageId/reactions', authenticateToken, (req, res) => {
+  try {
+    const { emoji } = req.body;
+    // In a real implementation, you would add/remove reactions
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add reaction' });
+  }
+});
+
+// ==================== UTILITY ROUTES ====================
+
+// Extract URL metadata
+app.post('/api/utils/extract-metadata', authenticateToken, (req, res) => {
+  try {
+    const { url } = req.body;
+    // Mock response for URL metadata
+    res.json({
+      ogTitle: 'Sample Title',
+      ogDescription: 'Sample description',
+      ogImage: [{ url: 'https://via.placeholder.com/300x200' }],
+      ogUrl: url,
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to extract metadata' });
+  }
+});
+
+// ==================== SEARCH ROUTES ====================
+
+// Search messages
+app.get('/api/search/messages', authenticateToken, (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.json({ data: [] });
+    }
+    
+    // Search through all messages
+    const allMessages = db.messages.findAll();
+    const searchResults = allMessages.filter(msg => 
+      msg.content.toLowerCase().includes(query.toLowerCase()) ||
+      msg.senderName.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    res.json({ data: searchResults });
+  } catch (error) {
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+// ==================== USER SETTINGS ROUTES ====================
+
+// Get user settings
+app.get('/api/user-settings', authenticateToken, (req, res) => {
+  try {
+    // Mock user settings
+    res.json({
+      theme: 'auto',
+      language: 'en',
+      notifications: true,
+      status: 'online'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch user settings' });
+  }
+});
+
+// ==================== STATS ROUTES ====================
+
+// Get dashboard statistics
+app.get('/api/stats/dashboard', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const users = db.users.findAll();
+    const chats = db.chats.findAll();
+    const messages = db.messages.findAll();
+    const pendingUsers = db.pendingUsers.findAll();
+
+    const stats = {
+      totalUsers: users.length,
+      activeUsers: users.filter(u => u.status === 'online').length,
+      totalChats: chats.length,
+      totalMessages: messages.length,
+      pendingUsers: pendingUsers.length,
+      recentActivity: messages.slice(-10).reverse() // Last 10 messages
+    };
+
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+  }
+});
+
+// Get audit logs
+app.get('/api/stats/audit-logs', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (page - 1) * limit;
+
+    // Mock audit logs - in a real app, you'd have an audit log collection
+    const auditLogs = [
+      {
+        id: '1',
+        action: 'User Login',
+        userId: req.user.userId,
+        userName: 'Admin',
+        timestamp: new Date(),
+        details: 'User logged in successfully'
+      },
+      {
+        id: '2',
+        action: 'User Approved',
+        userId: req.user.userId,
+        userName: 'Admin',
+        timestamp: new Date(Date.now() - 3600000), // 1 hour ago
+        details: 'Approved pending user registration'
+      }
+    ];
+
+    const paginatedLogs = auditLogs.slice(skip, skip + parseInt(limit));
+    
+    res.json({
+      logs: paginatedLogs,
+      total: auditLogs.length,
+      page: parseInt(page),
+      totalPages: Math.ceil(auditLogs.length / limit)
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+// ==================== OVERSIGHT ROUTES ====================
+
+// Get direct chats for oversight
+app.get('/api/chats/oversee/direct', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Get all direct chats (type: 'direct')
+    const directChats = db.chats.findAll().filter(chat => chat.type === 'direct');
+    
+    res.json(directChats);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch direct chats for oversight' });
+  }
+});
+
+// Get messages for oversight
+app.get('/api/chats/:chatId/oversee/messages', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { page = 1, limit = 50 } = req.query;
+    const messages = db.messages.findByChatId(req.params.chatId);
+    
+    // Paginate messages
+    const skip = (page - 1) * limit;
+    const paginatedMessages = messages.slice(skip, skip + parseInt(limit));
+    
+    res.json(paginatedMessages);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch messages for oversight' });
   }
 });
 
@@ -288,26 +636,21 @@ app.get('/api/health', (req, res) => {
 // ==================== SOCKET.IO ====================
 
 io.on('connection', (socket) => {
-  console.log(`✅ User connected: ${socket.id}`);
-  
   socket.on('join-user', (userId) => {
     if (userId) {
       socket.join(userId);
-      console.log(`User ${userId} joined their personal room`);
     }
   });
   
   socket.on('join-chat', (chatId) => {
     if (chatId) {
       socket.join(chatId);
-      console.log(`User ${socket.id} joined chat: ${chatId}`);
     }
   });
   
   socket.on('leave-chat', (chatId) => {
     if (chatId) {
       socket.leave(chatId);
-      console.log(`User ${socket.id} left chat: ${chatId}`);
     }
   });
   
@@ -316,7 +659,7 @@ io.on('connection', (socket) => {
   });
   
   socket.on('disconnect', () => {
-    console.log(`❌ User disconnected: ${socket.id}`);
+    // User disconnected - no need to log this
   });
 });
 
@@ -327,7 +670,7 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('Global error:', err);
+  console.error('Server error:', err);
   res.status(500).json({ 
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
@@ -347,7 +690,8 @@ async function createDefaultAdmin() {
       email: adminEmail,
       password: hashedPassword,
       role: 'manager',
-      status: 'active',
+      status: 'online',
+      lastSeen: new Date(),
       avatar: null
     });
     console.log('✅ Default admin created (admin@iibchat.com / admin123)');
