@@ -1,23 +1,41 @@
 import React, { useEffect, useState } from 'react';
-import { BookCopy, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import dataService from '../../services/dataService';
 import { format } from 'date-fns';
 
+interface AuditLog {
+  _id: string;
+  action: string;
+  actorId: {
+    name: string;
+    email: string;
+  };
+  targetId: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+interface PaginationInfo {
+  page: number;
+  totalPages: number;
+  totalCount: number;
+}
+
 export default function AuditLogPage() {
   const { setCurrentScreen } = useApp();
-  const [logs, setLogs] = useState([]);
-  const [pagination, setPagination] = useState(null);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [, setPagination] = useState<PaginationInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchLogs = (page = 1) => {
     setLoading(true);
     dataService.getAuditLogs(page)
-      .then(data => {
-        setLogs(data.data);
+      .then((data: { logs: AuditLog[]; pagination: PaginationInfo }) => {
+        setLogs(data.logs || []);
         setPagination(data.pagination);
       })
-      .catch(err => console.error("Failed to load audit logs", err))
+      .catch((err: Error) => console.error("Failed to load audit logs", err))
       .finally(() => setLoading(false));
   };
 

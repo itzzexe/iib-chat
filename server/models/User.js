@@ -17,7 +17,8 @@ const userSchema = new mongoose.Schema({
   password: { 
     type: String, 
     required: [true, 'Password is required'],
-    minlength: [6, 'Password must be at least 6 characters']
+    minlength: [6, 'Password must be at least 6 characters'],
+    select: false  // Hide password by default
   },
   role: { 
     type: String, 
@@ -52,7 +53,7 @@ const userSchema = new mongoose.Schema({
       ret.id = ret._id;
       delete ret._id;
       delete ret.__v;
-      delete ret.password; // Never send password in JSON
+      delete ret.password; // Always remove password from JSON output
       return ret;
     }
   }

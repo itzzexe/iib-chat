@@ -1,10 +1,10 @@
 # Dependencies
 node_modules/
-*/node_modules/
-
-# Production builds
-dist/
-build/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # Environment variables
 .env
@@ -13,12 +13,10 @@ build/
 .env.test.local
 .env.production.local
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
 
 # Runtime data
 pids
@@ -30,23 +28,19 @@ pids
 coverage/
 *.lcov
 
-# nyc test coverage
-.nyc_output
+# Logs
+logs
+*.log
 
 # Dependency directories
+node_modules/
 jspm_packages/
-
-# TypeScript cache
-*.tsbuildinfo
 
 # Optional npm cache directory
 .npm
 
 # Optional eslint cache
 .eslintcache
-
-# Optional stylelint cache
-.stylelintcache
 
 # Microbundle cache
 .rpt2_cache/
@@ -63,12 +57,9 @@ jspm_packages/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
+# dotenv environment variables file
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.test
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -76,7 +67,6 @@ jspm_packages/
 
 # Next.js build output
 .next
-out
 
 # Nuxt.js build / generate output
 .nuxt
@@ -86,19 +76,34 @@ dist
 .cache/
 public
 
-# Storybook build outputs
-.out
-.storybook-out
-storybook-static
+# Vuepress build output
+.vuepress/dist
 
-# Temporary folders
-tmp/
-temp/
+# Serverless directories
+.serverless/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# yarn v2
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# IDE files
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
@@ -112,42 +117,29 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Database files
-server/data/
-*.db
-*.sqlite
-*.sqlite3
+# Temporary files
+tmp/
+temp/
 
-# Uploads
+# Server uploads (keep structure but ignore files)
+server/uploads/*
+!server/uploads/.gitkeep
+!server/uploads/avatars/
 server/uploads/avatars/*
 !server/uploads/avatars/.gitkeep
 
-# Logs
-logs
-*.log
+# Database dumps
+*.dump
 
-# Runtime files
-*.pid
-*.seed
-*.pid.lock
+# Test files
+test-*.cjs
+check-*.cjs
+create-*.cjs
+fix-*.cjs
 
-# Coverage
-coverage/
+# Documentation drafts
+*.draft.md
 
-# Compiled binary addons
-build/Release
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# dotenv environment variables file
-.env
-
-# next.js build output
-.next
+# Local configuration files
+config.local.js
+config.local.json

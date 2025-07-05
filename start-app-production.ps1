@@ -1,7 +1,7 @@
-# IIB Chat Application - Development Startup Script
-# This script starts both the backend server and frontend application for development
+# IIB Chat Application - Production Startup Script
+# This script starts both the backend server and frontend application
 
-Write-Host "🚀 Starting IIB Chat Application (Development Mode)..." -ForegroundColor Green
+Write-Host "🚀 Starting IIB Chat Application..." -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Cyan
 
 # Check if MongoDB is running
@@ -12,7 +12,6 @@ try {
         Write-Host "✅ MongoDB is running" -ForegroundColor Green
     } else {
         Write-Host "❌ MongoDB is not running. Please start MongoDB first." -ForegroundColor Red
-        Write-Host "💡 Tip: Run 'net start MongoDB' or start MongoDB service" -ForegroundColor Yellow
         exit 1
     }
 } catch {
@@ -20,9 +19,9 @@ try {
     exit 1
 }
 
-# Start Backend Server in Development Mode
-Write-Host "🔧 Starting Backend Server (Development Mode)..." -ForegroundColor Yellow
-Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$PWD\server'; Write-Host '🖥️ Backend Server Starting (Development)...' -ForegroundColor Green; npm run dev"
+# Start Backend Server
+Write-Host "🔧 Starting Backend Server..." -ForegroundColor Yellow
+Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$PWD\server'; Write-Host '🖥️ Backend Server Starting...' -ForegroundColor Green; npm start"
 
 # Wait for backend to start
 Write-Host "⏳ Waiting for backend server to start..." -ForegroundColor Yellow
@@ -30,16 +29,16 @@ Start-Sleep 5
 
 # Check if backend is running
 $backendRunning = $false
-for ($i = 1; $i -le 8; $i++) {
+for ($i = 1; $i -le 10; $i++) {
     try {
-        $response = Invoke-RestMethod -Uri "http://localhost:3000/api/health" -Method GET -TimeoutSec 3
+        $response = Invoke-RestMethod -Uri "http://localhost:3000/api/health" -Method GET -TimeoutSec 2
         if ($response.status -eq "ok") {
             Write-Host "✅ Backend server is running successfully" -ForegroundColor Green
             $backendRunning = $true
             break
         }
     } catch {
-        Write-Host "⏳ Waiting for backend... (attempt $i/8)" -ForegroundColor Yellow
+        Write-Host "⏳ Waiting for backend... (attempt $i/10)" -ForegroundColor Yellow
         Start-Sleep 2
     }
 }
@@ -49,9 +48,9 @@ if (-not $backendRunning) {
     exit 1
 }
 
-# Start Frontend Application in Development Mode
-Write-Host "🎨 Starting Frontend Application (Development Mode)..." -ForegroundColor Yellow
-Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; Write-Host '🌐 Frontend Application Starting (Development)...' -ForegroundColor Green; npm run dev"
+# Start Frontend Application
+Write-Host "🎨 Starting Frontend Application..." -ForegroundColor Yellow
+Start-Process PowerShell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; Write-Host '🌐 Frontend Application Starting...' -ForegroundColor Green; npm run dev"
 
 # Wait for frontend to start
 Write-Host "⏳ Waiting for frontend application to start..." -ForegroundColor Yellow
@@ -59,14 +58,14 @@ Start-Sleep 5
 
 # Check if frontend is running
 $frontendRunning = $false
-for ($i = 1; $i -le 8; $i++) {
+for ($i = 1; $i -le 10; $i++) {
     try {
-        $response = Invoke-RestMethod -Uri "http://localhost:5173" -Method GET -TimeoutSec 3
+        $response = Invoke-RestMethod -Uri "http://localhost:5173" -Method GET -TimeoutSec 2
         Write-Host "✅ Frontend application is running successfully" -ForegroundColor Green
         $frontendRunning = $true
         break
     } catch {
-        Write-Host "⏳ Waiting for frontend... (attempt $i/8)" -ForegroundColor Yellow
+        Write-Host "⏳ Waiting for frontend... (attempt $i/10)" -ForegroundColor Yellow
         Start-Sleep 2
     }
 }
@@ -80,13 +79,7 @@ Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "🎉 IIB Chat Application Started Successfully!" -ForegroundColor Green
 Write-Host "🌐 Frontend: http://localhost:5173" -ForegroundColor Cyan
 Write-Host "🔧 Backend API: http://localhost:3000/api" -ForegroundColor Cyan
-Write-Host "📊 API Health: http://localhost:3000/api/health" -ForegroundColor Cyan
 Write-Host "👤 Default Admin: admin@iibchat.com / Admin123" -ForegroundColor Magenta
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "💡 Development Mode Features:" -ForegroundColor Yellow
-Write-Host "   - Hot reload enabled" -ForegroundColor White
-Write-Host "   - Auto-restart on file changes" -ForegroundColor White
-Write-Host "   - Detailed error logging" -ForegroundColor White
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "Press Ctrl+C to stop the application" -ForegroundColor Yellow
 
@@ -97,4 +90,4 @@ try {
     }
 } catch {
     Write-Host "🛑 Application stopped" -ForegroundColor Red
-}
+} 

@@ -1,149 +1,170 @@
 # IIB Chat Application
 
-A modern, real-time chat application built with React, TypeScript, Node.js, and Socket.IO. Features user management, real-time messaging, file sharing, and administrative controls.
+A modern, real-time chat application built with React, Node.js, Express, MongoDB, and Socket.IO. Features include user authentication, role-based access control, file sharing, and an admin dashboard.
 
 ## 🚀 Features
 
 ### Core Features
 - **Real-time Messaging**: Instant messaging with Socket.IO
-- **User Authentication**: Secure login/registration system
-- **User Management**: Admin approval system for new users
-- **File Sharing**: Upload and share images and documents
-- **Multi-language Support**: Arabic and English interface
-- **Dark/Light Mode**: Toggle between themes
-- **Responsive Design**: Works on desktop and mobile devices
+- **User Authentication**: Secure JWT-based authentication
+- **Role-based Access**: Manager and Employee roles with different permissions
+- **File Sharing**: Upload and share files with other users
+- **User Management**: Admin dashboard for managing users and permissions
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-### Administrative Features
-- **User Approval System**: Managers can approve/reject new registrations
-- **Member Management**: Add, remove, and manage user roles
-- **Private Chat Oversight**: Managers can monitor private conversations
-- **Audit Logging**: Track user actions and system events
-- **Broadcasting**: Send announcements to all users
-
-### Technical Features
-- **Real-time Updates**: Live message updates and typing indicators
-- **Emoji Support**: Full emoji picker integration
+### Advanced Features
 - **Message Reactions**: React to messages with emojis
+- **Message Replies**: Reply to specific messages
+- **Typing Indicators**: See when others are typing
+- **User Status**: Online/offline status indicators
 - **Search Functionality**: Search through messages and users
-- **Notification System**: Browser notifications for new messages
-- **JSON Database**: No MongoDB required - uses local JSON files
+- **Audit Logs**: Track user actions and system events
+- **Broadcasting**: Send announcements to all users
 
 ## 🛠️ Technology Stack
 
 ### Frontend
 - **React 18** with TypeScript
-- **Vite** for build tooling
+- **Vite** for fast development and building
 - **Tailwind CSS** for styling
 - **Socket.IO Client** for real-time communication
-- **React Hot Toast** for notifications
-- **Lucide React** for icons
+- **Axios** for API calls
+- **React Router** for navigation
 
 ### Backend
-- **Node.js** with Express
+- **Node.js** with Express.js
+- **MongoDB** with Mongoose ODM
 - **Socket.IO** for real-time communication
 - **JWT** for authentication
 - **bcryptjs** for password hashing
-- **JSON file storage** (no database required)
-- **CORS** and security middleware
+- **Multer** for file uploads
+- **Helmet** for security headers
 
 ## 📋 Prerequisites
 
-Before running the application, ensure you have:
+Before running this application, make sure you have the following installed:
 
-1. **Node.js** (v16 or higher) - [Download](https://nodejs.org/)
-2. **Git** - [Download](https://git-scm.com/)
+- **Node.js** (v16 or higher)
+- **npm** or **yarn**
+- **MongoDB** (v4.4 or higher)
+- **Git**
 
 ## 🚀 Quick Start
 
-### Option 1: Using PowerShell Script (Windows)
-
-```powershell
-# Clone the repository
-git clone https://github.com/itzzexe/iib-chat.git
-cd iib-chat
-
-# Run the application
-.\start-app-simple.ps1
+### 1. Clone the Repository
+```bash
+git clone <repository-url>
+cd iib-chat-application
 ```
 
-### Option 2: Manual Setup
+### 2. Install Dependencies
 
-1. **Clone the repository**
-    ```bash
-   git clone https://github.com/itzzexe/iib-chat.git
-    cd iib-chat
-    ```
+#### Frontend Dependencies
+```bash
+npm install
+```
 
-2. **Install dependencies**
-    ```bash
-   # Install frontend dependencies
-   npm install
+#### Backend Dependencies
+```bash
+cd server
+npm install
+cd ..
+```
 
-   # Install backend dependencies
-    cd server
-    npm install
-    cd .. 
-    ```
+### 3. Start MongoDB
+Make sure MongoDB is running on your system:
+```bash
+# Windows (if installed as service)
+net start MongoDB
 
-3. **Start the application**
+# macOS with Homebrew
+brew services start mongodb-community
 
-   **Terminal 1 - Backend:**
-    ```bash
-   cd server
-   npm start
-    ```
+# Linux
+sudo systemctl start mongod
+```
 
-   **Terminal 2 - Frontend:**
-    ```bash
-    npm run dev
-    ```
+### 4. Start the Application
 
-## 🌐 Access the Application
+#### Option 1: Using the Production Script (Recommended)
+```bash
+.\start-app-production.ps1
+```
 
+#### Option 2: Manual Start
+```bash
+# Terminal 1 - Start Backend
+cd server
+npm start
+
+# Terminal 2 - Start Frontend
+npm run dev
+```
+
+### 5. Access the Application
 - **Frontend**: http://localhost:5173
-- **Backend API**: http://localhost:3000
-- **API Health Check**: http://localhost:3000/api/health
-
-## 🔐 Default Credentials
-
-### Admin Account
-- **Email**: admin@iibchat.com
-- **Password**: admin123
-
-### Test User Account
-You can register new users through the registration form, which will require admin approval.
+- **Backend API**: http://localhost:3000/api
+- **Default Admin**: admin@iibchat.com / Admin123
 
 ## 📁 Project Structure
 
 ```
-iib-chat/
+iib-chat-application/
 ├── src/                          # Frontend source code
-│   ├── components/              # React components
-│   │   ├── Admin/              # Admin dashboard components
-│   │   ├── Auth/               # Authentication components
-│   │   ├── Chat/               # Chat-related components
-│   │   ├── Layout/             # Layout components
-│   │   ├── MemberManagement/   # User management components
-│   │   ├── Settings/           # Settings components
-│   │   └── UI/                 # Reusable UI components
-│   ├── context/                # React context providers
-│   ├── services/               # API and utility services
-│   ├── types/                  # TypeScript type definitions
-│   └── main.tsx               # Application entry point
-├── server/                      # Backend source code
-│   ├── config/                 # Configuration files
-│   ├── middleware/             # Express middleware
-│   ├── models/                 # Data models
-│   ├── routes/                 # API routes
-│   ├── services/               # Business logic services
-│   ├── uploads/                # File upload directory
-│   ├── data/                   # JSON database files
-│   └── index-simple.js         # Server entry point
-├── public/                      # Static assets
-│   ├── locales/                # Translation files
-│   └── sounds/                 # Audio files
-└── docs/                       # Documentation
+│   ├── components/               # React components
+│   │   ├── Admin/               # Admin dashboard components
+│   │   ├── Auth/                # Authentication components
+│   │   ├── Chat/                # Chat-related components
+│   │   ├── Layout/              # Layout components
+│   │   ├── MemberManagement/    # User management components
+│   │   ├── Search/              # Search components
+│   │   ├── Settings/            # Settings components
+│   │   ├── UI/                  # Reusable UI components
+│   │   └── UserRequests/        # User request components
+│   ├── context/                 # React context providers
+│   ├── services/                # API services
+│   ├── types/                   # TypeScript type definitions
+│   └── data/                    # Mock data and constants
+├── server/                       # Backend source code
+│   ├── config/                  # Configuration files
+│   ├── middleware/              # Express middleware
+│   ├── models/                  # MongoDB models
+│   ├── routes/                  # API routes
+│   ├── services/                # Business logic services
+│   ├── uploads/                 # File upload directory
+│   └── index.js                 # Main server file
+├── public/                       # Static assets
+├── start-app-production.ps1      # Production startup script
+├── start-app.ps1                # Development startup script
+└── README.md                    # This file
 ```
+
+## 🔐 Default Accounts
+
+When the application starts for the first time, it creates a default admin account:
+
+- **Email**: admin@iibchat.com
+- **Password**: Admin123
+- **Role**: Manager
+
+## 🌟 Key Features Explained
+
+### User Roles
+- **Manager**: Full access to admin dashboard, user management, and all features
+- **Employee**: Standard user with access to messaging and basic features
+
+### Chat Types
+- **Direct Messages**: Private conversations between two users
+- **Group Chats**: Multi-user conversations
+- **General Chat**: Public chat for all users
+- **Announcements**: Manager-only broadcast channel
+
+### Admin Dashboard
+- User management (approve/reject/delete users)
+- Role assignment
+- System statistics
+- Audit logs
+- User activity monitoring
 
 ## 🔧 Configuration
 
@@ -154,133 +175,116 @@ Create a `.env` file in the `server` directory:
 ```env
 PORT=3000
 NODE_ENV=development
-MONGODB_URI=mongodb://localhost:27017/iibchat
-JWT_SECRET=your-super-secure-jwt-secret
+MONGODB_URI=mongodb://localhost:27017/iib-chat
+JWT_SECRET=your-super-secret-jwt-key-here
 FRONTEND_URL=http://localhost:5173
 ```
 
-### Database
+### Database Configuration
 
-The application uses JSON files for data storage by default. Files are stored in `server/data/`:
+The application uses MongoDB as the primary database. The connection string can be configured in the `.env` file or defaults to `mongodb://localhost:27017/iib-chat`.
 
-- `users.json` - User accounts
-- `chats.json` - Chat rooms
-- `messages.json` - Chat messages
-- `pending-users.json` - Pending user registrations
+## 🚀 Deployment
 
-## 🎯 Usage
+### Production Build
 
-### For Regular Users
-1. Register an account (requires admin approval)
-2. Wait for admin approval
-3. Login and start chatting
-4. Join different chat rooms
-5. Send messages, files, and reactions
-6. Customize settings and profile
-
-### For Administrators
-1. Login with admin credentials
-2. Approve/reject user registrations
-3. Manage user roles and permissions
-4. Monitor private chat conversations
-5. Send system-wide announcements
-6. View audit logs and system statistics
-
-## 🔒 Security Features
-
-- **JWT Authentication**: Secure token-based authentication
-- **Password Hashing**: bcryptjs for secure password storage
-- **CORS Protection**: Configured for specific origins
-- **Rate Limiting**: Prevent API abuse
-- **Input Validation**: Server-side validation for all inputs
-- **XSS Protection**: Sanitized user inputs
-
-## 🌍 Internationalization
-
-The application supports multiple languages:
-- **English** (default)
-- **Arabic** (RTL support)
-
-Translation files are located in `public/locales/`.
-
-## 📱 Mobile Support
-
-The application is fully responsive and works on:
-- Desktop browsers
-- Mobile browsers
-- Tablets
-
-## 🔧 Development
-
-### Available Scripts
-
+1. Build the frontend:
 ```bash
-# Frontend
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build
-npm run lint         # Run ESLint
-
-# Backend
-cd server
-npm start            # Start production server
-npm run dev          # Start development server with nodemon
+npm run build
 ```
 
-### Development Guidelines
+2. Start the backend in production mode:
+```bash
+cd server
+NODE_ENV=production npm start
+```
 
-1. **Code Style**: Follow TypeScript and React best practices
-2. **Commits**: Use conventional commit messages
-3. **Testing**: Write tests for new features
-4. **Documentation**: Update README for new features
+### Docker Deployment (Optional)
 
-## 🐛 Troubleshooting
+The application can be containerized using Docker. Create appropriate Dockerfile and docker-compose.yml files for your deployment needs.
 
-### Common Issues
+## 🧪 Testing
 
-1. **Port Already in Use**
-   ```bash
-   # Kill process on port 3000
-   netstat -ano | findstr :3000
-   taskkill /PID <PID> /F
-   ```
+### Backend Testing
+```bash
+cd server
+npm test
+```
 
-2. **Authentication Issues**
-   - Clear browser localStorage
-   - Check JWT secret configuration
-   - Verify token expiration
-
-3. **File Upload Issues**
-   - Check `server/uploads` directory permissions
-   - Verify file size limits
-   - Check CORS configuration
+### Frontend Testing
+```bash
+npm test
+```
 
 ## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## 📝 API Documentation
+
+### Authentication Endpoints
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - Login user
+- `POST /api/auth/logout` - Logout user
+
+### User Management
+- `GET /api/users` - Get all users
+- `GET /api/users/:id` - Get user by ID
+- `PUT /api/users/:id` - Update user
+- `DELETE /api/users/:id` - Delete user (manager only)
+
+### Chat Endpoints
+- `GET /api/chats` - Get user's chats
+- `POST /api/chats` - Create new chat
+- `GET /api/chats/:id/messages` - Get chat messages
+- `POST /api/chats/:id/messages` - Send message
+
+### Admin Endpoints
+- `GET /api/stats/dashboard` - Get dashboard statistics
+- `GET /api/stats/audit-logs` - Get audit logs
+- `GET /api/pending-users` - Get pending user registrations
+- `POST /api/pending-users/:id/approve` - Approve user
+- `POST /api/pending-users/:id/reject` - Reject user
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **MongoDB Connection Error**
+   - Ensure MongoDB is running
+   - Check the connection string in `.env`
+
+2. **Port Already in Use**
+   - Kill processes using ports 3000 or 5173
+   - Or change ports in configuration
+
+3. **Authentication Issues**
+   - Clear browser storage
+   - Check JWT secret configuration
+
+4. **File Upload Issues**
+   - Ensure `uploads` directory exists
+   - Check file permissions
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📞 Support
-
-For support and questions:
-- Create an issue in the GitHub repository
-- Contact the development team
-- Check the documentation in the `docs/` folder
-
-## 🎉 Acknowledgments
+## 🙏 Acknowledgments
 
 - React team for the amazing framework
-- Socket.IO for real-time communication
-- Tailwind CSS for the utility-first CSS framework
+- Socket.IO team for real-time communication
+- MongoDB team for the database
 - All contributors and users of this application
+
+## 📞 Support
+
+For support, please open an issue in the GitHub repository or contact the development team.
 
 ---
 
-**Made with ❤️ for the IIB community**
+**Made with ❤️ by the IIB Chat Team**

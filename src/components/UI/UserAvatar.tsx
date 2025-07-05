@@ -16,10 +16,10 @@ export default function UserAvatar({
   className = '' 
 }: UserAvatarProps) {
   const sizeClasses = {
-    xs: 'w-6 h-6',
-    sm: 'w-8 h-8',
-    md: 'w-10 h-10',
-    lg: 'w-12 h-12'
+    xs: 'w-6 h-6 text-xs',
+    sm: 'w-8 h-8 text-sm',
+    md: 'w-10 h-10 text-base',
+    lg: 'w-12 h-12 text-lg'
   };
 
   const statusPositions = {
@@ -29,24 +29,60 @@ export default function UserAvatar({
     lg: '-bottom-1.5 -right-1.5'
   };
 
-  const getAvatarUrl = () => {
-    if (user.avatar?.startsWith('/uploads')) {
-      return `http://localhost:3000${user.avatar}`;
+  // Get initials from user name
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    const words = name.trim().split(' ');
+    if (words.length === 1) {
+      return words[0].charAt(0).toUpperCase();
     }
-    if (user.avatar?.startsWith('http')) {
-      return user.avatar;
-    }
-    // Fallback image if no avatar or if it's an emoji/invalid
-    return `https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150`;
+    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
   };
+
+  // Generate consistent color based on user name
+  const getBackgroundColor = (name: string) => {
+    if (!name) return 'bg-gray-500';
+    
+    const colors = [
+      'bg-red-500',
+      'bg-blue-500',
+      'bg-green-500',
+      'bg-yellow-500',
+      'bg-purple-500',
+      'bg-pink-500',
+      'bg-indigo-500',
+      'bg-teal-500',
+      'bg-orange-500',
+      'bg-cyan-500',
+      'bg-lime-500',
+      'bg-amber-500'
+    ];
+    
+    // Simple hash function to get consistent color
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  };
+
+  const initials = getInitials(user.name);
+  const backgroundColor = getBackgroundColor(user.name);
 
   return (
     <div className={`relative ${className}`}>
-      <img
-        src={getAvatarUrl()}
-        alt={user.name}
-        className={`${sizeClasses[size]} rounded-full object-cover border-2 border-white dark:border-secondary-800`}
-      />
+      <div
+        className={`${sizeClasses[size]} ${backgroundColor} rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-secondary-800 select-none`}
+        title={user.name}
+        style={{ 
+          minWidth: sizeClasses[size].split(' ')[0].replace('w-', '').replace('h-', '') + 'px',
+          minHeight: sizeClasses[size].split(' ')[1].replace('w-', '').replace('h-', '') + 'px'
+        }}
+      >
+        {initials}
+      </div>
       {showStatus && (
         <UserStatusIndicator 
           status={user.status} 

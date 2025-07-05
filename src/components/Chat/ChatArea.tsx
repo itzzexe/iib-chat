@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, MoreVertical, AlertTriangle, X } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, AlertTriangle, X, Users, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import dataService from '../../services/dataService';
 import MessageList from './MessageList';
 import EmojiPicker from '../UI/EmojiPicker';
+import Modal from '../UI/Modal';
 
 interface ChatAreaProps {
   isOversight?: boolean;
@@ -24,7 +25,9 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
     replyingTo,
     cancelReply,
     // For typing
-    typingUsers
+    typingUsers,
+    deleteChat,
+    clearChatMessages
   } = useApp();
   
   const [messageText, setMessageText] = useState('');
@@ -32,7 +35,9 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
   const [isUrgent, setIsUrgent] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
 
   // Handle typing indicator
   useEffect(() => {
@@ -42,10 +47,10 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    dataService.emitStartTyping(activeChat, currentUser.name);
+    dataService.emitTyping(activeChat, currentUser.id, currentUser.name, true);
 
-    typingTimeoutRef.current = setTimeout(() => {
-      dataService.emitStopTyping(activeChat);
+    typingTimeoutRef.current = window.setTimeout(() => {
+      dataService.emitTyping(activeChat, currentUser.id, currentUser.name, false);
     }, 1500); // 1.5 seconds of inactivity
 
     return () => {
@@ -62,23 +67,30 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
     }
   }, [messageText]);
 
-  const currentChat = isOversight ? activeOversightChat : chats.find(c => c.id === activeChat);
+  // Ensure chats and users are always arrays
+  const safeChats = Array.isArray(chats) ? chats : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+
+  const currentChat = isOversight ? activeOversightChat : safeChats.find(c => c.id === activeChat);
   const chatMessages = isOversight 
     ? (activeOversightChat ? overseenMessages[activeOversightChat.id] : [])
     : (activeChat ? messages[activeChat] : []);
 
+  const currentMessages = safeChats.length > 0 && activeChat ? 
+    (messages[activeChat] || []) : [];
+
   if (!currentChat || !currentUser) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-secondary-50 dark:bg-secondary-900">
+      <div className="flex-1 flex items-center justify-center bg-white dark:bg-secondary-900">
         <div className="text-center">
           <div className="w-16 h-16 bg-secondary-200 dark:bg-secondary-700 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Send className="w-8 h-8 text-secondary-400 dark:text-secondary-500" />
+            <Users className="w-8 h-8 text-secondary-400 dark:text-secondary-500" />
           </div>
           <h3 className="text-lg font-medium text-secondary-900 dark:text-white mb-2">
-            Welcome to IIB Chat
+            Select a chat to start messaging
           </h3>
-          <p className="text-secondary-500 dark:text-secondary-400 max-w-sm">
-            Select a conversation from the sidebar to start chatting with your colleagues.
+          <p className="text-secondary-500 dark:text-secondary-400">
+            Choose a conversation from the sidebar to begin
           </p>
         </div>
       </div>
@@ -86,9 +98,9 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
   }
 
   const handleSendMessage = () => {
-    if (!messageText.trim()) return;
+    if (!messageText.trim() || !activeChat) return;
 
-    const messageType = currentChat?.type === 'announcement' && currentUser.role === 'manager' 
+    const messageType = currentChat?.type === 'announcements' && currentUser.role === 'manager' 
       ? 'announcement' 
       : 'text';
 
@@ -111,7 +123,7 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && activeChat) {
       // Show immediate feedback that file is being processed
       const fileName = file.name;
       const fileSize = (file.size / (1024 * 1024)).toFixed(2);
@@ -122,7 +134,7 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
   const getChatTitle = () => {
     if (currentChat?.type === 'direct') {
       const otherUserId = currentChat.participants.find(id => id !== currentUser.id);
-      const otherUser = users.find(u => u.id === otherUserId);
+      const otherUser = safeUsers.find(u => u.id === otherUserId);
       return otherUser?.name || 'Unknown User';
     }
     return currentChat?.name || 'Chat';
@@ -131,20 +143,48 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
   const getChatSubtitle = () => {
     if (currentChat?.type === 'direct') {
       const otherUserId = currentChat.participants.find(id => id !== currentUser.id);
-      const otherUser = users.find(u => u.id === otherUserId);
+      const otherUser = safeUsers.find(u => u.id === otherUserId);
       if (otherUser) {
         return `${otherUser.status.charAt(0).toUpperCase() + otherUser.status.slice(1)} • Direct message`;
       }
       return 'Direct message';
     }
-    return currentChat?.type === 'announcement' 
+    return currentChat?.type === 'announcements' 
       ? 'Official announcements and updates'
       : currentChat?.type === 'group'
-      ? `${currentChat.participants.length} members`
+      ? `${currentChat.participants?.length || 0} members`
       : 'Direct message';
   };
 
-  const canSendAnnouncement = currentChat?.type === 'announcement' && currentUser.role === 'manager';
+  const canSendAnnouncement = currentChat?.type === 'announcements' && currentUser.role === 'manager';
+
+  const canDeleteChat = () => {
+    return currentUser.role === 'manager' && 
+           currentChat.type !== 'general' && 
+           currentChat.type !== 'announcements';
+  };
+
+  const canClearChat = () => {
+    return currentUser.role === 'manager';
+  };
+
+  const handleDeleteChat = async () => {
+    try {
+      await deleteChat(currentChat.id);
+      setShowDeleteModal(false);
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+    }
+  };
+
+  const handleClearChat = async () => {
+    try {
+      await clearChatMessages(currentChat.id);
+      setShowClearModal(false);
+    } catch (error) {
+      console.error('Failed to clear chat:', error);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-secondary-900">
@@ -152,13 +192,13 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
       <div className="flex items-center justify-between p-4 border-b border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${
-            currentChat?.type === 'announcement' 
+            currentChat?.type === 'announcements' 
               ? 'bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-400'
               : currentChat?.type === 'direct'
               ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400'
               : 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
           }`}>
-            {currentChat?.type === 'announcement' && <AlertTriangle className="w-4 h-4" />}
+            {currentChat?.type === 'announcements' && <AlertTriangle className="w-4 h-4" />}
             {currentChat?.type === 'direct' && <Send className="w-4 h-4" />}
             {currentChat?.type === 'group' && <Send className="w-4 h-4" />}
           </div>
@@ -171,9 +211,26 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
             </p>
           </div>
         </div>
-        <button className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-600 dark:text-secondary-400">
-          <MoreVertical className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {canClearChat() && (
+            <button
+              onClick={() => setShowClearModal(true)}
+              className="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+              title="Clear all messages"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+          {canDeleteChat() && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              title="Delete chat"
+            >
+              <AlertTriangle className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -284,6 +341,68 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
             className="hidden"
           />
         </div>
+      )}
+
+      {/* Delete Chat Modal */}
+      {showDeleteModal && (
+        <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)}>
+          <div className="p-6 text-center">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-2">
+              Delete Chat
+            </h3>
+            <p className="text-secondary-600 dark:text-secondary-400 mb-6">
+              Are you sure you want to delete "{getChatTitle()}"? This action cannot be undone and will delete all messages.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 text-secondary-600 dark:text-secondary-400 hover:text-secondary-900 dark:hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteChat}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+              >
+                Delete Chat
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Clear Chat Modal */}
+      {showClearModal && (
+        <Modal isOpen={showClearModal} onClose={() => setShowClearModal(false)}>
+          <div className="p-6 text-center">
+            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-2">
+              Clear Messages
+            </h3>
+            <p className="text-secondary-600 dark:text-secondary-400 mb-6">
+              Are you sure you want to clear all messages in "{getChatTitle()}"? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="px-4 py-2 text-secondary-600 dark:text-secondary-400 hover:text-secondary-900 dark:hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearChat}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg"
+              >
+                Clear Messages
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

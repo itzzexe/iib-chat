@@ -8,7 +8,8 @@ const messageSchema = new mongoose.Schema({
   },
   senderId: { 
     type: String, 
-    required: [true, 'Sender ID is required']
+    required: [true, 'Sender ID is required'],
+    index: true
   },
   senderName: {
     type: String,
@@ -54,6 +55,10 @@ const messageSchema = new mongoose.Schema({
       type: String,
       required: true,
       maxlength: [50, 'User name cannot exceed 50 characters']
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
     }
   }],
   replyTo: {
@@ -80,12 +85,14 @@ const messageSchema = new mongoose.Schema({
   readBy: [{
     userId: String,
     readAt: { type: Date, default: Date.now }
-  }]
+  }],
+  fileSize: Number
 }, {
   timestamps: true,
   toJSON: {
     transform: function(doc, ret) {
-      ret.id = ret._id;
+      ret.id = ret._id.toString();
+      ret.timestamp = ret.createdAt;
       delete ret._id;
       delete ret.__v;
       return ret;
@@ -94,8 +101,8 @@ const messageSchema = new mongoose.Schema({
 });
 
 // Indexes for better performance
-messageSchema.index({ chatId: 1, timestamp: -1 });
-messageSchema.index({ senderId: 1 });
+messageSchema.index({ chatId: 1, createdAt: -1 });
+messageSchema.index({ senderId: 1, createdAt: -1 });
 messageSchema.index({ type: 1 });
 messageSchema.index({ content: 'text' });
 

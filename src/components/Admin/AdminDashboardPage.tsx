@@ -4,7 +4,28 @@ import { Users, MessageSquare, Briefcase } from 'lucide-react';
 import dataService from '../../services/dataService';
 import { toast } from 'react-hot-toast';
 
-const StatCard = ({ title, value, icon }) => (
+interface StatCardProps {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+}
+
+interface DashboardStats {
+  totalUsers: number;
+  onlineUsers: number;
+  totalChats: number;
+  totalMessages: number;
+  messagesLast7Days: Array<{
+    _id: string;
+    count: number;
+  }>;
+  topUsers: Array<{
+    name: string;
+    count: number;
+  }>;
+}
+
+const StatCard = ({ title, value, icon }: StatCardProps) => (
   <div className="bg-white dark:bg-secondary-800 p-6 rounded-lg shadow-sm flex items-center gap-4">
     <div className="p-3 bg-primary-100 dark:bg-primary-900 rounded-lg">{icon}</div>
     <div>
@@ -18,7 +39,7 @@ const BroadcastForm = () => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
 
@@ -28,6 +49,7 @@ const BroadcastForm = () => {
       toast.success('Broadcast sent successfully!');
       setMessage('');
     } catch (error) {
+      console.error('Broadcast error:', error);
       toast.error('Failed to send broadcast.');
     } finally {
       setIsSending(false);
@@ -59,13 +81,13 @@ const BroadcastForm = () => {
 };
 
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     dataService.getDashboardStats()
-      .then(data => setStats(data))
-      .catch(err => console.error("Failed to load dashboard stats", err))
+      .then((data: DashboardStats) => setStats(data))
+      .catch((err) => console.error("Failed to load dashboard stats", err))
       .finally(() => setLoading(false));
   }, []);
 

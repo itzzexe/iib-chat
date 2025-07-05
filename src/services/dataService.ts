@@ -41,18 +41,26 @@ api.interceptors.response.use(
     console.error('API Error:', error);
     
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/';
-      toast.error('Session expired. Please login again.');
+      // Only clear session if it's not the login endpoint
+      if (!error.config?.url?.includes('/auth/login')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        // Don't force redirect, let the app handle it naturally
+        toast.error('Session expired. Please login again.');
+      }
     } else if (error.response?.status === 403) {
       toast.error('Access denied.');
     } else if (error.response?.status >= 500) {
       toast.error('Server error. Please try again later.');
     } else if (error.response?.data?.error) {
-      toast.error(error.response.data.error);
+      // Don't show toast for login errors, let the component handle it
+      if (!error.config?.url?.includes('/auth/login')) {
+        toast.error(error.response.data.error);
+      }
     } else if (error.code === 'ECONNABORTED') {
       toast.error('Request timeout. Please check your connection.');
-    } else {
+    } else if (!error.config?.url?.includes('/auth/login')) {
+      // Don't show generic error for login attempts
       toast.error('Something went wrong. Please try again.');
     }
     
@@ -98,36 +106,56 @@ const withToast = async <T>(
 export const connectSocket = (userId: string): Promise<Socket> => {
   return new Promise((resolve, reject) => {
     try {
-      if (socket?.connected) {
+      if (socket && socket.connected) {
+        console.log('Socket already connected');
         resolve(socket);
         return;
       }
 
-      socket = io(SOCKET_URL, {
+      const token = getStoredToken();
+      if (!token) {
+        reject(new Error('No token available'));
+        return;
+      }
+
+      socket = io(API_BASE_URL.replace('/api', ''), {
+        auth: {
+          token: token
+        },
         transports: ['websocket', 'polling'],
         timeout: 10000,
-        forceNew: true,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
+        forceNew: true
       });
 
       socket.on('connect', () => {
-        socket?.emit('join-user', userId);
-        resolve(socket!);
+        console.log('✅ Socket connected successfully');
+        
+        // Join user room for personal notifications
+        if (socket) {
+          socket.emit('join-user', userId);
+          resolve(socket);
+        }
       });
 
       socket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
+        console.error('❌ Socket connection error:', error);
         reject(error);
       });
 
       socket.on('disconnect', (reason) => {
-        // Socket disconnected - reconnection will be handled automatically
+        console.log('❌ Socket disconnected:', reason);
       });
 
-      socket.on('reconnect', () => {
-        socket?.emit('join-user', userId);
+      socket.on('receive-message', (message) => {
+        console.log('📨 Received message via socket:', message);
+      });
+
+      socket.on('messageUpdated', (message) => {
+        console.log('📝 Message updated via socket:', message);
+      });
+
+      socket.on('messageDeleted', (data) => {
+        console.log('🗑️ Message deleted via socket:', data);
       });
 
     } catch (error) {
@@ -141,6 +169,7 @@ export const disconnectSocket = (): void => {
   if (socket) {
     socket.disconnect();
     socket = null;
+    console.log('🔌 Socket disconnected');
   }
 };
 
@@ -149,12 +178,14 @@ export const getSocket = (): Socket | null => socket;
 export const joinChat = (chatId: string): void => {
   if (socket?.connected) {
     socket.emit('join-chat', chatId);
+    console.log(`📥 Joined chat: ${chatId}`);
   }
 };
 
 export const leaveChat = (chatId: string): void => {
   if (socket?.connected) {
     socket.emit('leave-chat', chatId);
+    console.log(`📤 Left chat: ${chatId}`);
   }
 };
 
@@ -179,23 +210,20 @@ export const emitStopTyping = (chatId: string): void => {
 // ==================== AUTHENTICATION ====================
 
 export const login = async (email: string, password: string): Promise<{ user: User; token: string }> => {
-  return withToast(
-    async () => {
-      const response = await api.post('/auth/login', { email, password });
-      const { user, token } = response.data;
-      
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      
-      // Connect socket after successful login
-      await connectSocket(user.id);
-      
-      return { user, token };
-    },
-    'Logging in...',
-    'Welcome back!',
-    'Login failed'
-  );
+  const response = await api.post('/auth/login', { email, password });
+  const { user, token } = response.data;
+  
+  localStorage.setItem('token', token);
+  localStorage.setItem('user', JSON.stringify(user));
+  
+  // Connect socket after successful login
+  try {
+    await connectSocket(user.id);
+  } catch (error) {
+    console.warn('Failed to connect socket during login:', error);
+  }
+  
+  return { user, token };
 };
 
 export const register = async (userData: {
@@ -204,15 +232,18 @@ export const register = async (userData: {
   password: string;
   isManager?: boolean;
 }): Promise<{ message: string }> => {
-  return withToast(
-    async () => {
-      const response = await api.post('/auth/register', userData);
-      return response.data;
-    },
-    'Creating account...',
-    'Account created successfully!',
-    'Registration failed'
-  );
+  try {
+    const response = await api.post('/auth/register', userData);
+    return response.data;
+  } catch (error: any) {
+    // Re-throw the error with proper structure for the frontend to handle
+    if (error.response?.data?.error) {
+      const apiError = new Error(error.response.data.error);
+      (apiError as any).response = error.response;
+      throw apiError;
+    }
+    throw error;
+  }
 };
 
 export const logout = async (): Promise<void> => {
@@ -256,7 +287,16 @@ export const getCurrentUser = async (): Promise<User> => {
 
 export const getUsers = async (): Promise<User[]> => {
   const response = await api.get('/users');
-  return response.data;
+  // Ensure we return an array even if the response format is different
+  const data = response.data;
+  if (data && data.success && Array.isArray(data.data)) {
+    return data.data;
+  } else if (Array.isArray(data)) {
+    return data;
+  } else {
+    console.warn('Unexpected users response format:', data);
+    return [];
+  }
 };
 
 export const updateUser = async (userId: string, updates: Partial<User>): Promise<User> => {
@@ -315,7 +355,16 @@ export const rejectUser = async (userId: string): Promise<void> => {
 
 export const getChats = async (): Promise<Chat[]> => {
   const response = await api.get('/chats');
-  return response.data;
+  // Ensure we return an array even if the response format is different
+  const data = response.data;
+  if (data && data.success && Array.isArray(data.data)) {
+    return data.data;
+  } else if (Array.isArray(data)) {
+    return data;
+  } else {
+    console.warn('Unexpected chats response format:', data);
+    return [];
+  }
 };
 
 export const getChat = async (chatId: string): Promise<Chat> => {
@@ -739,6 +788,29 @@ export const sendBroadcast = async (message: string): Promise<void> => {
   await api.post('/broadcasts/send', { message });
 };
 
+export const deleteChat = async (chatId: string): Promise<void> => {
+  return withToast(
+    async () => {
+      await api.delete(`/chats/${chatId}`);
+    },
+    'Deleting chat...',
+    'Chat deleted successfully!',
+    'Failed to delete chat'
+  );
+};
+
+export const clearChatMessages = async (chatId: string): Promise<{ deletedCount: number }> => {
+  return withToast(
+    async () => {
+      const response = await api.delete(`/chats/${chatId}/messages`);
+      return response.data;
+    },
+    'Clearing chat messages...',
+    'Chat messages cleared successfully!',
+    'Failed to clear chat messages'
+  );
+};
+
 export default {
   // Auth
   login,
@@ -823,5 +895,11 @@ export default {
   getAuditLogs,
   
   // New function
-  sendBroadcast
+  sendBroadcast,
+  
+  // New function
+  deleteChat,
+  
+  // New function
+  clearChatMessages
 };

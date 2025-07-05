@@ -1,59 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useState } from 'react';
 import { 
   MessageSquare, 
-  Search, 
-  Settings, 
   Users, 
-  Shield, 
-  FileText, 
-  BarChart3,
-  User,
-  LogOut
-} from 'lucide-react';
-import { useApp } from '../../context/AppContext';
-import UserAvatar from '../UI/UserAvatar';
-import UserStatusIndicator from '../UI/UserStatusIndicator';
-import { 
   Bell, 
+  Settings, 
   Archive, 
+  Search,
   Moon,
   Sun,
-  Plus,
+  LogOut,
   Hash,
   AtSign,
   UserPlus,
   ShieldCheck,
+  BarChart,
   BookCopy
 } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import { UserStatus, Chat } from '../../types';
+import UserStatusIndicator from '../UI/UserStatusIndicator';
 import StartChatModal from '../Chat/StartChatModal';
-import UserRequestsPage from '../UserRequests/UserRequestsPage';
-import MemberManagementPage from '../MemberManagement/MemberManagementPage';
-import PrivateChatOversight from '../MemberManagement/PrivateChatOversight';
-import SettingsPage from '../Settings/SettingsPage';
 
 export default function Sidebar() {
-  const { t } = useTranslation();
   const { 
     currentUser, 
-    users, 
     chats, 
+    users, 
     activeChat, 
-    setActiveChat, 
-    setCurrentScreen, 
-    logout, 
     darkMode, 
-    toggleDarkMode,
-    pendingUsers,
-    getPendingUsersCount
+    currentScreen,
+    setActiveChat, 
+    setCurrentScreen,
+    toggleDarkMode, 
+    logout,
+    updateUserStatus,
+    getPendingUsersCount,
+    performSearch
   } = useApp();
-
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const handleLogout = () => {
-    logout();
-  };
-
+  
   const [showArchived, setShowArchived] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [showStartChatModal, setShowStartChatModal] = useState(false);
@@ -62,32 +46,36 @@ export default function Sidebar() {
 
   if (!currentUser) return null;
 
-  const filteredChats = chats.filter(chat => 
+  // Ensure chats is always an array
+  const safeChats = Array.isArray(chats) ? chats : [];
+  const safeUsers = Array.isArray(users) ? users : [];
+
+  const filteredChats = safeChats.filter(chat => 
     showArchived ? chat.isArchived : !chat.isArchived
   );
 
   const getUnreadCount = () => {
-    return chats.reduce((total, chat) => total + chat.unreadCount, 0);
+    return safeChats.reduce((total, chat) => total + (chat.unreadCount || 0), 0);
   };
 
-  const getChatDisplayName = (chat: any) => {
+  const getChatDisplayName = (chat: Chat) => {
     if (chat.type === 'direct') {
       const otherUserId = chat.participants.find((id: string) => id !== currentUser.id);
-      const otherUser = users.find(u => u.id === otherUserId);
+      const otherUser = safeUsers.find(u => u.id === otherUserId);
       return otherUser?.name || 'Unknown User';
     }
     return chat.name;
   };
 
-  const getDirectChatUser = (chat: any) => {
+  const getDirectChatUser = (chat: Chat) => {
     if (chat.type === 'direct') {
       const otherUserId = chat.participants.find((id: string) => id !== currentUser.id);
-      return users.find(u => u.id === otherUserId);
+      return safeUsers.find(u => u.id === otherUserId);
     }
     return null;
   };
 
-  const getChatIcon = (chat: any) => {
+  const getChatIcon = (chat: Chat) => {
     switch (chat.type) {
       case 'announcements':
         return <Bell className="w-4 h-4" />;
@@ -117,7 +105,7 @@ export default function Sidebar() {
             <div>
               <h1 className="font-semibold text-secondary-900 dark:text-white">IIB Chat</h1>
               <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                {users.filter(u => u.status === 'online').length} online • {users.length} total users
+                {safeUsers.filter(u => u.status === 'online').length} online • {safeUsers.length} total users
               </p>
             </div>
           </div>
@@ -294,7 +282,7 @@ export default function Sidebar() {
                       <p className="font-medium text-secondary-900 dark:text-white truncate">
                         {getChatDisplayName(chat)}
                       </p>
-                      {chat.unreadCount > 0 && (
+                      {(chat.unreadCount || 0) > 0 && (
                         <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
                           {chat.unreadCount}
                         </span>
@@ -304,7 +292,7 @@ export default function Sidebar() {
                       {isGeneral && 'Public discussion for all team members'}
                       {isAnnouncements && (currentUser.role === 'manager' ? 'Post important announcements' : 'Important announcements')}
                       {chat.type === 'direct' && 'Direct message'}
-                      {chat.type === 'group' && `${chat.participants.length} members`}
+                      {chat.type === 'group' && `${chat.participants?.length || 0} members`}
                     </p>
                   </div>
                 </button>
@@ -337,7 +325,7 @@ export default function Sidebar() {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <BarChart3 className="w-4 h-4" />
+                  <BarChart className="w-4 h-4" />
                   <span className="text-sm font-medium">Dashboard</span>
                 </div>
               </button>
@@ -373,7 +361,7 @@ export default function Sidebar() {
                   <span className="text-sm font-medium">Members</span>
                 </div>
                 <span className="text-xs bg-secondary-200 dark:bg-secondary-700 text-secondary-600 dark:text-secondary-400 px-2 py-0.5 rounded-full">
-                  {users.length}
+                  {safeUsers.length}
                 </span>
               </button>
 
@@ -421,7 +409,7 @@ export default function Sidebar() {
             </button>
             
             <button
-              onClick={handleLogout}
+              onClick={logout}
               className="flex items-center justify-center p-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors"
               title="Logout"
             >

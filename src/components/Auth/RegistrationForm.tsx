@@ -38,19 +38,28 @@ export default function RegistrationForm({ onBackToLogin }: RegistrationFormProp
       return;
     }
 
-    if (formData.password.length < 4) {
+    if (formData.password.length < 6) {
       setError('Password must be at least 6 characters long');
       setLoading(false);
       return;
     }
 
-    const success = await register(formData.name, formData.email, formData.password);
-    
-    if (success) {
-      setSuccess(true);
-      setFormData({ name: '', email: '', password: '', confirmPassword: '' });
-    } else {
-      setError('Email already exists. Please use a different email address.');
+    try {
+      const success = await register(formData.name, formData.email, formData.password);
+      
+      if (success) {
+        setSuccess(true);
+        setFormData({ name: '', email: '', password: '', confirmPassword: '' });
+      } else {
+        setError('Registration failed. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      // Extract error message from the response
+      const errorMessage = error?.response?.data?.error || 
+                          error?.message || 
+                          'Registration failed. Please try again.';
+      setError(errorMessage);
     }
     
     setLoading(false);

@@ -2,8 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { User, PendingUser } = require('../models');
+const { authenticateToken, JWT_SECRET } = require('../middleware/auth');
 const { validateRegistration, validateLogin } = require('../middleware/validation');
-const { JWT_SECRET } = require('../middleware/auth');
 const { logAction } = require('../services/auditLogService');
 
 const router = express.Router();
@@ -53,16 +53,34 @@ router.post('/register', validateRegistration, async (req, res) => {
   try {
     const { name, email, password, isManager = false } = req.body;
 
-    // Check if user already exists
-    const [existingUser, existingPending] = await Promise.all([
-      User.findOne({ email }),
-      PendingUser.findOne({ email })
-    ]);
+    console.log('Registration attempt:', { name, email, isManager });
+
+    // Clean up old pending users (older than 24 hours)
+    await PendingUser.deleteMany({
+      createdAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    });
+
+    // Check if user already exists in approved users
+    const existingUser = await User.findOne({ email });
+    console.log('Existing user check:', { existingUser: !!existingUser });
     
-    if (existingUser || existingPending) {
+    if (existingUser) {
+      console.log('User already exists in approved users');
       return res.status(409).json({ 
         success: false,
-        error: 'Email already exists' 
+        error: 'Email already exists in approved users' 
+      });
+    }
+    
+    // Check if user already exists in pending users
+    const existingPending = await PendingUser.findOne({ email });
+    console.log('Existing pending user check:', { existingPending: !!existingPending });
+    
+    if (existingPending) {
+      console.log('User already exists in pending users');
+      return res.status(409).json({ 
+        success: false,
+        error: 'Email already exists in pending requests. Please wait for approval.' 
       });
     }
 
@@ -76,6 +94,8 @@ router.post('/register', validateRegistration, async (req, res) => {
         isApproved: true 
       });
       
+      console.log('Active manager count:', activeManagerCount);
+      
       if (activeManagerCount === 0) {
         const manager = new User({
           name,
@@ -87,12 +107,14 @@ router.post('/register', validateRegistration, async (req, res) => {
         });
         
         await manager.save();
+        console.log('Manager account created successfully');
         
         return res.status(201).json({ 
           success: true,
           message: 'Manager account created successfully' 
         });
       } else {
+        console.log('Active manager already exists');
         return res.status(400).json({ 
           success: false,
           error: 'Active manager account already exists' 
@@ -105,10 +127,12 @@ router.post('/register', validateRegistration, async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: 'employee'
+      role: 'employee',
+      status: 'pending'
     });
 
     await pendingUser.save();
+    console.log('Pending user created successfully');
     
     res.status(201).json({ 
       success: true,
@@ -120,6 +144,7 @@ router.post('/register', validateRegistration, async (req, res) => {
     
     // Handle duplicate key error
     if (error.code === 11000) {
+      console.log('Duplicate key error detected');
       return res.status(409).json({ 
         success: false,
         error: 'Email already exists' 
@@ -138,18 +163,30 @@ router.post('/login', validateLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user
+    // Find user with password field
     const user = await User.findOne({ email }).select('+password');
     
-    if (!user || !user.isApproved) {
+    console.log('Login attempt:', { email, userFound: !!user, isApproved: user?.isApproved });
+    
+    if (!user) {
       return res.status(401).json({ 
         success: false,
         error: 'Invalid credentials or account not approved' 
       });
     }
+    
+    if (!user.isApproved) {
+      return res.status(401).json({ 
+        success: false,
+        error: 'Account not approved' 
+      });
+    }
 
     // Check password
+    console.log('Password check:', { hasPassword: !!user.password, passwordLength: user.password?.length });
     const isValidPassword = await bcrypt.compare(password, user.password);
+    console.log('Password validation result:', isValidPassword);
+    
     if (!isValidPassword) {
       return res.status(401).json({ 
         success: false,

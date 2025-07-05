@@ -33,9 +33,7 @@ const validateRegistration = [
   body('name')
     .trim()
     .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters')
-    .matches(/^[a-zA-Z\s\u0600-\u06FF]+$/)
-    .withMessage('Name can only contain letters and spaces'),
+    .withMessage('Name must be between 2 and 50 characters'),
   
   body('email')
     .isEmail()
@@ -44,9 +42,7 @@ const validateRegistration = [
   
   body('password')
     .isLength({ min: 6, max: 100 })
-    .withMessage('Password must be between 6 and 100 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain at least one lowercase letter, one uppercase letter, and one number'),
+    .withMessage('Password must be at least 6 characters'),
   
   handleValidationErrors
 ];

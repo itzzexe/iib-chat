@@ -16,6 +16,11 @@ const auditLogSchema = new mongoose.Schema({
       'user.approved',
       'user.rejected',
       'chat.created',
+      'chat.deleted',
+      'chat.cleared',
+      'broadcast.sent',
+      'message.sent',
+      'message.deleted'
     ],
   },
   targetId: {

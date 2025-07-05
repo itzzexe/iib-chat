@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { format, isToday, isYesterday, parseISO, isValid } from 'date-fns';
+import { AlertTriangle, FileText, Download, Edit, Trash2, Smile, CornerUpLeft, Check, CheckCheck } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Heart, Reply, Edit2, Trash2, Download, ExternalLink, Smile, CornerUpLeft, Edit, AlertTriangle } from 'lucide-react';
-import { formatDistanceToNow, parseISO, isValid, format, isToday, isYesterday } from 'date-fns';
-import UserAvatar from '../UI/UserAvatar';
-import LinkPreviewCard from './LinkPreviewCard';
 import { Message, LinkPreviewData } from '../../types';
+import UserAvatar from '../UI/UserAvatar';
+import EmojiPicker from '../UI/EmojiPicker';
 import { getLinkMetadata } from '../../services/dataService';
+import LinkPreviewCard from './LinkPreviewCard';
 
 interface MessageListProps {
   messages: Message[];
@@ -13,18 +14,15 @@ interface MessageListProps {
 
 const MessageContentWithLinkPreview = ({ content }: { content: string }) => {
   const [previewData, setPreviewData] = useState<LinkPreviewData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = content.match(urlRegex);
     
     if (urls && urls[0]) {
-      setIsLoading(true);
       getLinkMetadata(urls[0])
         .then(data => setPreviewData(data))
-        .catch(err => console.error("Link preview error:", err))
-        .finally(() => setIsLoading(false));
+        .catch(err => console.error("Link preview error:", err));
     }
   }, [content]);
 
@@ -37,7 +35,7 @@ const MessageContentWithLinkPreview = ({ content }: { content: string }) => {
 };
 
 export default function MessageList({ messages }: MessageListProps) {
-  const { currentUser, users, addReaction, editMessage, deleteMessage, setReplyingTo, markMessagesAsRead } = useApp();
+  const { currentUser, users, addReaction, editMessage, deleteMessage, setReplyingTo, chats, activeChat } = useApp();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = React.useState<string | null>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -138,8 +136,11 @@ export default function MessageList({ messages }: MessageListProps) {
             const getReadStatusIcon = () => {
               if (!isOwnMessage) return null;
               
-              const otherParticipants = currentChat.participants.filter(p => p !== currentUser?.id);
-              const readByAllOthers = otherParticipants.every(pId => 
+              const currentChat = chats.find(c => c.id === activeChat);
+              if (!currentChat) return null;
+              
+              const otherParticipants = currentChat.participants.filter((p: string) => p !== currentUser?.id);
+              const readByAllOthers = otherParticipants.every((pId: string) => 
                 message.readBy.some(r => r.userId === pId)
               );
 
@@ -315,13 +316,13 @@ export default function MessageList({ messages }: MessageListProps) {
                           onClick={() => setEditingMessage({ id: message.id, content: message.content })}
                           className="p-1 rounded hover:bg-secondary-200 dark:hover:bg-secondary-600 text-secondary-500 dark:text-secondary-400"
                         >
-                          <Edit2 className="w-3 h-3" />
+                          <Edit className="w-3 h-3" />
                         </button>
                         <button 
                           onClick={() => setReplyingTo(message)}
                           className="p-1 rounded hover:bg-secondary-200 dark:hover:bg-secondary-600 text-secondary-500 dark:text-secondary-400"
                         >
-                          <Reply className="w-3 h-3" />
+                          <CornerUpLeft className="w-3 h-3" />
                         </button>
                         <button 
                           onClick={() => deleteMessage(message.chatId!, message.id)}
@@ -338,7 +339,7 @@ export default function MessageList({ messages }: MessageListProps) {
                         onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
                         className="p-1 rounded hover:bg-secondary-200 dark:hover:bg-secondary-700 text-secondary-500 dark:text-secondary-400"
                       >
-                        <Heart className="w-3 h-3" />
+                        <Smile className="w-3 h-3" />
                       </button>
                       
                       {showEmojiPicker === message.id && (

@@ -15,13 +15,15 @@ import AdminDashboardPage from './components/Admin/AdminDashboardPage';
 import AuditLogPage from './components/Admin/AuditLogPage';
 import Modal from './components/UI/Modal';
 import StartChatModal from './components/Chat/StartChatModal';
+import { useResponsive } from './components/Layout/ResponsiveContainer';
 
 function App() {
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Move useApp hook outside of try-catch to avoid conditional hook calls
+  // Move hooks outside of try-catch to fix React hooks rules
   const { currentUser, currentScreen, requestNotificationPermission, notifications, loading, isModalOpen, modalContent, openModal, closeModal } = useApp();
+  const { isMobile, isTablet } = useResponsive();
 
   // Error boundary functionality
   useEffect(() => {
@@ -149,9 +151,12 @@ function App() {
     };
 
     return (
-      <div className="h-screen flex bg-secondary-50 dark:bg-secondary-900 overflow-hidden">
-        {/* Sidebar with responsive width */}
-        <div className="w-64 lg:w-80 flex-shrink-0 border-r border-secondary-200 dark:border-secondary-700">
+      <div className={`h-screen flex bg-secondary-50 dark:bg-secondary-900 overflow-hidden ${isMobile ? 'flex-col' : ''}`}>
+        {/* Sidebar with responsive width - hidden on mobile unless needed */}
+        <div className={`
+          ${isMobile ? 'hidden' : isTablet ? 'w-64' : 'w-64 lg:w-80'} 
+          flex-shrink-0 border-r border-secondary-200 dark:border-secondary-700
+        `}>
           <Sidebar />
         </div>
         
@@ -167,12 +172,13 @@ function App() {
         
         {/* Toast notifications */}
         <Toaster
-          position="top-right"
+          position={isMobile ? "top-center" : "top-right"}
           toastOptions={{
             duration: 4000,
             style: {
               background: '#363636',
               color: '#fff',
+              fontSize: isMobile ? '14px' : '16px',
             },
             success: {
               duration: 3000,

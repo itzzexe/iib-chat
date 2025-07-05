@@ -78,6 +78,10 @@ interface AppContextValue extends AppState {
   searchResults: SearchResult[];
   performSearch: (query: string) => Promise<void>;
   getChatDisplayName: (chat: Chat) => string;
+
+  // New functionality
+  deleteChat: (chatId: string) => Promise<void>;
+  clearChatMessages: (chatId: string) => Promise<{ deletedCount: number } | undefined>;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -270,14 +274,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const socket = dataServiceAPI.getSocket();
     if (socket) {
       const messageHandler = (message: Message) => {
+        console.log('📨 Handling received message:', message);
         dispatch({ type: 'ADD_MESSAGE', payload: { chatId: message.chatId!, message } });
+        
+        // Update the chat's last message
+        const chatToUpdate = state.chats.find(c => c.id === message.chatId);
+        if (chatToUpdate) {
+          const updatedChat = {
+            ...chatToUpdate,
+            lastMessage: {
+              content: message.content,
+              senderId: message.senderId,
+              senderName: message.senderName,
+              timestamp: message.timestamp
+            },
+            unreadCount: message.senderId !== state.currentUser?.id ? 
+              (chatToUpdate.unreadCount || 0) + 1 : 
+              (chatToUpdate.unreadCount || 0)
+          };
+          dispatch({ type: 'UPDATE_CHAT', payload: updatedChat });
+        }
+        
         // Play sound if message is not from current user and window is not focused
         if (message.senderId !== state.currentUser?.id && !document.hasFocus()) {
           playNotificationSound();
         }
       };
-      const updatedHandler = (message: Message) => dispatch({ type: 'UPDATE_MESSAGE', payload: { chatId: message.chatId!, message } });
-      const deletedHandler = ({ messageId, chatId }: { messageId: string, chatId: string }) => dispatch({ type: 'REMOVE_MESSAGE', payload: { chatId, messageId } });
+      const updatedHandler = (message: Message) => {
+        console.log('📝 Handling updated message:', message);
+        dispatch({ type: 'UPDATE_MESSAGE', payload: { chatId: message.chatId!, message } });
+      };
+      const deletedHandler = ({ messageId, chatId }: { messageId: string, chatId: string }) => {
+        console.log('🗑️ Handling deleted message:', { messageId, chatId });
+        dispatch({ type: 'REMOVE_MESSAGE', payload: { chatId, messageId } });
+      };
       
       const userTypingHandler = ({ chatId, userName }: { chatId: string, userName: string }) => {
         const currentUsers = state.typingUsers?.[chatId] || [];
@@ -310,6 +340,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ) });
       };
 
+      const chatDeletedHandler = ({ chatId }: { chatId: string }) => {
+        console.log('🗑️ Chat deleted:', chatId);
+        // Remove chat from state
+        dispatch({ type: 'SET_CHATS', payload: state.chats.filter(c => c.id !== chatId) });
+        
+        // Remove messages from state
+        const newMessages = { ...state.messages };
+        delete newMessages[chatId];
+        dispatch({ type: 'SET_MESSAGES', payload: newMessages });
+        
+        // If this was the active chat, clear it
+        if (state.activeChat === chatId) {
+          dispatch({ type: 'SET_ACTIVE_CHAT', payload: null });
+        }
+      };
+
+      const chatClearedHandler = ({ chatId }: { chatId: string }) => {
+        console.log('🧹 Chat cleared:', chatId);
+        // Clear messages from state
+        dispatch({ type: 'SET_MESSAGES', payload: { ...state.messages, [chatId]: [] } });
+        
+        // Update chat's last message
+        const updatedChats = state.chats.map(chat => 
+          chat.id === chatId 
+            ? { ...chat, lastMessage: undefined }
+            : chat
+        );
+        dispatch({ type: 'SET_CHATS', payload: updatedChats });
+      };
+
+      // Remove existing listeners first
+      socket.off('receive-message');
+      socket.off('messageUpdated');
+      socket.off('messageDeleted');
+      socket.off('user-typing');
+      socket.off('user-stop-typing');
+      socket.off('messagesRead');
+      socket.off('global-broadcast');
+      socket.off('chat-deleted');
+      socket.off('chat-cleared');
+
+      // Add new listeners
       socket.on('receive-message', messageHandler);
       socket.on('messageUpdated', updatedHandler);
       socket.on('messageDeleted', deletedHandler);
@@ -317,6 +389,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       socket.on('user-stop-typing', userStopTypingHandler);
       socket.on('messagesRead', messagesReadHandler);
       socket.on('global-broadcast', broadcastHandler);
+      socket.on('chat-deleted', chatDeletedHandler);
+      socket.on('chat-cleared', chatClearedHandler);
 
       return () => {
         socket.off('receive-message', messageHandler);
@@ -326,6 +400,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         socket.off('user-stop-typing', userStopTypingHandler);
         socket.off('messagesRead', messagesReadHandler);
         socket.off('global-broadcast', broadcastHandler);
+        socket.off('chat-deleted', chatDeletedHandler);
+        socket.off('chat-cleared', chatClearedHandler);
       };
     }
   }, [state.currentUser, state.typingUsers]);
@@ -338,8 +414,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         
         // Add a timeout to prevent infinite loading
         const timeout = setTimeout(() => {
+          console.warn('Loading timeout reached, showing login screen');
           dispatch({ type: 'SET_LOADING', payload: false });
-        }, 5000);
+        }, 10000);
         
         // Check if user is logged in (has token)
         const storedToken = localStorage.getItem('token');
@@ -350,69 +427,90 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const user = JSON.parse(storedUser);
             dispatch({ type: 'SET_CURRENT_USER', payload: user });
             
-            // Try to load additional data with error handling
+            // Try to verify the token is still valid
             try {
-              const [users, chats] = await Promise.all([
-                dataServiceAPI.getUsers(),
-                dataServiceAPI.getChats()
-              ]);
+              await dataServiceAPI.getCurrentUser();
               
-              dispatch({ type: 'SET_USERS', payload: users });
-              dispatch({ type: 'SET_CHATS', payload: chats });
-              
-              // Add default messages for default chats
-              const defaultMessages: { [chatId: string]: Message[] } = {};
-              
-              // Find general and announcements chats
-              const generalChat = chats.find(c => c.type === 'general');
-              const announcementsChat = chats.find(c => c.type === 'announcements');
-              
-              if (generalChat) {
-                defaultMessages[generalChat.id] = [{
-                  id: 'welcome-general',
-                  senderId: 'system',
-                  senderName: 'System',
-                  content: 'Welcome to the General Chat! This is where team members can have casual conversations and share ideas.',
-                  timestamp: new Date(),
-                  type: 'text',
-                  reactions: [],
-                  readBy: []
-                }];
-              }
-              
-              if (announcementsChat) {
-                defaultMessages[announcementsChat.id] = [{
-                  id: 'welcome-announcements',
-                  senderId: 'system',
-                  senderName: 'System',
-                  content: 'This is the official announcements channel. Only managers can post important updates here.',
-                  timestamp: new Date(),
-                  type: 'announcement',
-                  reactions: [],
-                  readBy: []
-                }];
-              }
-              
-              dispatch({ type: 'SET_MESSAGES', payload: defaultMessages });
-              
-              // Select the first chat automatically
-              if (chats.length > 0 && !state.activeChat) {
-                const firstChat = generalChat || chats[0];
-                dispatch({ type: 'SET_ACTIVE_CHAT', payload: firstChat.id });
-              }
-              
-              // Load pending users if manager
-              if (user.role === 'manager') {
-                try {
-                  const pendingUsers = await dataServiceAPI.getPendingUsers();
-                  dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
-                } catch (error) {
-                  console.warn('Failed to load pending users:', error);
+              // Token is valid, proceed to load data
+              try {
+                const [users, chats] = await Promise.all([
+                  dataServiceAPI.getUsers(),
+                  dataServiceAPI.getChats()
+                ]);
+                
+                // Ensure arrays are always returned
+                const safeUsers = Array.isArray(users) ? users : [];
+                const safeChats = Array.isArray(chats) ? chats : [];
+                
+                dispatch({ type: 'SET_USERS', payload: safeUsers });
+                dispatch({ type: 'SET_CHATS', payload: safeChats });
+                
+                // Add default messages for default chats
+                const defaultMessages: { [chatId: string]: Message[] } = {};
+                
+                // Find general and announcements chats
+                const generalChat = safeChats.find(c => c.type === 'general');
+                const announcementsChat = safeChats.find(c => c.type === 'announcements');
+                
+                if (generalChat) {
+                  defaultMessages[generalChat.id] = [{
+                    id: 'welcome-general',
+                    senderId: 'system',
+                    senderName: 'System',
+                    content: 'Welcome to the General Chat! This is where team members can have casual conversations and share ideas.',
+                    timestamp: new Date(),
+                    type: 'text',
+                    reactions: [],
+                    readBy: []
+                  }];
                 }
+                
+                if (announcementsChat) {
+                  defaultMessages[announcementsChat.id] = [{
+                    id: 'welcome-announcements',
+                    senderId: 'system',
+                    senderName: 'System',
+                    content: 'This is the official announcements channel. Only managers can post important updates here.',
+                    timestamp: new Date(),
+                    type: 'announcement',
+                    reactions: [],
+                    readBy: []
+                  }];
+                }
+                
+                dispatch({ type: 'SET_MESSAGES', payload: defaultMessages });
+                
+                // Select the first chat automatically
+                if (safeChats.length > 0) {
+                  const firstChat = generalChat || safeChats[0];
+                  dispatch({ type: 'SET_ACTIVE_CHAT', payload: firstChat.id });
+                }
+                
+                // Load pending users if manager
+                if (user.role === 'manager') {
+                  try {
+                    const pendingUsers = await dataServiceAPI.getPendingUsers();
+                    dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+                  } catch (error) {
+                    console.warn('Failed to load pending users:', error);
+                  }
+                }
+                
+                // Connect socket after successful data load
+                try {
+                  await dataServiceAPI.connectSocket(user.id);
+                } catch (error) {
+                  console.warn('Failed to connect socket:', error);
+                }
+                
+              } catch (dataError) {
+                console.warn('Failed to load additional data, but user is valid:', dataError);
+                // Don't clear user if just data loading fails
               }
-            } catch (error) {
-              console.error('Failed to load additional data:', error);
-              // If we can't load data, clear the user to show login
+              
+            } catch (tokenError) {
+              console.error('Token validation failed:', tokenError);
+              // Token is invalid, clear stored data
               localStorage.removeItem('token');
               localStorage.removeItem('user');
               dispatch({ type: 'SET_CURRENT_USER', payload: null });
@@ -435,7 +533,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     loadInitialData();
-  }, [state.activeChat]);
+  }, []); // Remove state.activeChat dependency to prevent infinite loops
 
   // Apply dark mode
   useEffect(() => {
@@ -456,22 +554,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
       
       const { user } = loginResult;
       
-      // Set current user
+      // Set current user immediately
       dispatch({ type: 'SET_CURRENT_USER', payload: user });
       
       // Load additional data after successful login
-      const [users, chats] = await Promise.all([
-        dataServiceAPI.getUsers(),
-        dataServiceAPI.getChats()
-      ]);
-      
-      dispatch({ type: 'SET_USERS', payload: users });
-      dispatch({ type: 'SET_CHATS', payload: chats });
-      
-      // Load pending users if manager
-      if (user.role === 'manager') {
-        const pendingUsers = await dataServiceAPI.getPendingUsers();
-        dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+      try {
+        const [users, chats] = await Promise.all([
+          dataServiceAPI.getUsers(),
+          dataServiceAPI.getChats()
+        ]);
+        
+        // Ensure arrays are always returned
+        const safeUsers = Array.isArray(users) ? users : [];
+        const safeChats = Array.isArray(chats) ? chats : [];
+        
+        dispatch({ type: 'SET_USERS', payload: safeUsers });
+        dispatch({ type: 'SET_CHATS', payload: safeChats });
+        
+        // Select the first chat automatically
+        if (safeChats.length > 0) {
+          const generalChat = safeChats.find(c => c.type === 'general');
+          const firstChat = generalChat || safeChats[0];
+          dispatch({ type: 'SET_ACTIVE_CHAT', payload: firstChat.id });
+        }
+        
+        // Load pending users if manager
+        if (user.role === 'manager') {
+          try {
+            const pendingUsers = await dataServiceAPI.getPendingUsers();
+            dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+          } catch (error) {
+            console.warn('Failed to load pending users:', error);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load additional data after login:', error);
+        // Don't fail the login if data loading fails
       }
       
       return true;
@@ -487,21 +605,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       
       if (result && result.message) {
         // Reload users and pending users to get updated data
-        const [users, pendingUsers] = await Promise.all([
-          dataServiceAPI.getUsers(),
-          dataServiceAPI.getPendingUsers()
-        ]);
-        
-        dispatch({ type: 'SET_USERS', payload: users });
-        dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+        try {
+          const [users, pendingUsers] = await Promise.all([
+            dataServiceAPI.getUsers(),
+            dataServiceAPI.getPendingUsers()
+          ]);
+          
+          dispatch({ type: 'SET_USERS', payload: users });
+          dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+        } catch (dataError) {
+          console.warn('Failed to reload data after registration:', dataError);
+        }
         
         return true;
       }
       
       return false;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Registration failed:', error);
-      return false;
+      // Re-throw the error so the component can handle it
+      throw error;
     }
   };
 
@@ -641,6 +764,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'SET_ACTIVE_CHAT', payload: chatId });
     if (chatId) {
       markChatAsRead(chatId);
+      
+      // Join the chat room in Socket.IO
+      const socket = dataServiceAPI.getSocket();
+      if (socket) {
+        socket.emit('join-chat', chatId);
+        console.log(`🔗 Joined chat room: ${chatId}`);
+      }
       
       // Load messages for this chat if not loaded
       if (!state.messages[chatId]) {
@@ -932,6 +1062,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return chat.name;
   };
 
+  const deleteChat = async (chatId: string) => {
+    if (!state.currentUser || state.currentUser.role !== 'manager') return;
+    
+    try {
+      await dataServiceAPI.deleteChat(chatId);
+      
+      // Remove chat from state
+      dispatch({ type: 'SET_CHATS', payload: state.chats.filter(c => c.id !== chatId) });
+      
+      // Remove messages from state
+      const newMessages = { ...state.messages };
+      delete newMessages[chatId];
+      dispatch({ type: 'SET_MESSAGES', payload: newMessages });
+      
+      // If this was the active chat, clear it
+      if (state.activeChat === chatId) {
+        dispatch({ type: 'SET_ACTIVE_CHAT', payload: null });
+      }
+      
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+    }
+  };
+
+  const clearChatMessages = async (chatId: string) => {
+    if (!state.currentUser || state.currentUser.role !== 'manager') return;
+    
+    try {
+      const result = await dataServiceAPI.clearChatMessages(chatId);
+      
+      // Clear messages from state
+      dispatch({ type: 'SET_MESSAGES', payload: { ...state.messages, [chatId]: [] } });
+      
+      // Update chat's last message
+      const updatedChats = state.chats.map(chat => 
+        chat.id === chatId 
+          ? { ...chat, lastMessage: undefined }
+          : chat
+      );
+      dispatch({ type: 'SET_CHATS', payload: updatedChats });
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to clear chat messages:', error);
+      throw error;
+    }
+  };
+
   const contextValue: AppContextValue = {
     ...state,
     login,
@@ -976,6 +1154,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     performSearch,
     searchResults: state.searchResults,
     getChatDisplayName,
+    deleteChat,
+    clearChatMessages,
   };
 
   return (

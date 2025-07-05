@@ -6,6 +6,207 @@ const { logAction } = require('../services/auditLogService');
 
 const router = express.Router();
 
+// --- MANAGER-ONLY ROUTES (MOVE TO TOP) ---
+
+// Get all direct chats for oversight
+router.get('/oversee/direct', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const directChats = await Chat.find({ type: 'direct' })
+      .sort({ updatedAt: -1 })
+      .populate('participants', 'name avatar email');
+      
+    res.json({
+      success: true,
+      data: directChats
+    });
+  } catch (error) {
+    console.error('Oversee direct chats error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
+// Get messages for any chat by ID (for manager oversight)
+router.get('/oversee/:id/messages', authenticateToken, requireManager, validateObjectId(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    
+    const chat = await Chat.findById(id);
+    if (!chat) {
+      return res.status(404).json({ success: false, error: 'Chat not found' });
+    }
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const messages = await Message.find({ chatId: id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('senderId', 'name avatar');
+      
+    messages.reverse(); // chronological order
+    
+    res.json({
+      success: true,
+      data: messages,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        hasMore: messages.length === parseInt(limit)
+      }
+    });
+  } catch (error) {
+    console.error('Oversee messages error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Clear chat messages (managers only) - SPECIFIC ROUTE FIRST
+router.delete('/:chatId/messages', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    
+    console.log('Clear chat messages request:', { chatId, userId: req.user.userId });
+    
+    // Validate chatId format
+    if (!chatId || chatId.length !== 24) {
+      console.log('Invalid chatId format:', chatId);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid chat ID format' 
+      });
+    }
+    
+    // Find the chat
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      console.log('Chat not found for clearing:', chatId);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Chat not found' 
+      });
+    }
+    
+    console.log('Chat found for clearing:', { chatId, chatType: chat.type, chatName: chat.name });
+    
+    // Delete all messages in the chat
+    const result = await Message.deleteMany({ chatId });
+    console.log('Messages cleared:', result.deletedCount);
+    
+    // Update chat's last message
+    await Chat.findByIdAndUpdate(chatId, {
+      lastMessage: null,
+      updatedAt: new Date()
+    });
+    
+    // Log the action
+    try {
+      await logAction(req.user.userId, 'chat.cleared', chatId, {
+        chatName: chat.name,
+        messagesDeleted: result.deletedCount
+      });
+    } catch (logError) {
+      console.error('Failed to log action:', logError);
+    }
+    
+    // Notify all users via socket
+    req.io.to(chatId).emit('chat-cleared', { 
+      chatId, 
+      clearedBy: req.user.userId,
+      timestamp: new Date()
+    });
+    
+    res.json({ 
+      success: true, 
+      message: `Chat cleared successfully. ${result.deletedCount} messages deleted.`,
+      deletedCount: result.deletedCount
+    });
+    
+  } catch (error) {
+    console.error('Clear chat error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to clear chat' 
+    });
+  }
+});
+
+// Delete chat (managers only) - SPECIFIC ROUTE SECOND
+router.delete('/:chatId', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    
+    console.log('Delete chat request:', { chatId, userId: req.user.userId });
+    
+    // Validate chatId format
+    if (!chatId || chatId.length !== 24) {
+      console.log('Invalid chatId format:', chatId);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid chat ID format' 
+      });
+    }
+    
+    // Find the chat
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      console.log('Chat not found:', chatId);
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Chat not found' 
+      });
+    }
+    
+    console.log('Chat found:', { chatId, chatType: chat.type, chatName: chat.name });
+    
+    // Prevent deletion of system chats (general, announcements)
+    if (chat.type === 'general' || chat.type === 'announcements') {
+      console.log('Attempted to delete system chat:', chat.type);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Cannot delete system chats' 
+      });
+    }
+    
+    // Delete all messages in the chat
+    const deleteResult = await Message.deleteMany({ chatId });
+    console.log('Messages deleted:', deleteResult.deletedCount);
+    
+    // Delete the chat
+    await Chat.findByIdAndDelete(chatId);
+    console.log('Chat deleted successfully');
+    
+    // Log the action
+    try {
+      await logAction(req.user.userId, 'chat.deleted', chatId, {
+        chatName: chat.name,
+        chatType: chat.type,
+        participantCount: chat.participants.length
+      });
+    } catch (logError) {
+      console.error('Failed to log action:', logError);
+    }
+    
+    // Notify all users via socket
+    req.io.emit('chat-deleted', { chatId, deletedBy: req.user.userId });
+    
+    res.json({ 
+      success: true, 
+      message: 'Chat deleted successfully' 
+    });
+    
+  } catch (error) {
+    console.error('Delete chat error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to delete chat' 
+    });
+  }
+});
+
 // Get user's chats
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -390,64 +591,6 @@ router.delete('/:chatId/messages/:messageId', authenticateToken, validateObjectI
 
   } catch (error) {
     console.error('Delete message error:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
-  }
-});
-
-// --- MANAGER-ONLY ROUTES ---
-
-// Get all direct chats for oversight
-router.get('/oversee/direct', authenticateToken, requireManager, async (req, res) => {
-  try {
-    const directChats = await Chat.find({ type: 'direct' })
-      .sort({ updatedAt: -1 })
-      .populate('participants', 'name avatar email');
-      
-    res.json({
-      success: true,
-      data: directChats
-    });
-  } catch (error) {
-    console.error('Oversee direct chats error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Internal server error' 
-    });
-  }
-});
-
-// Get messages for any chat by ID (for manager oversight)
-router.get('/oversee/:id/messages', authenticateToken, requireManager, validateObjectId(), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { page = 1, limit = 50 } = req.query;
-    
-    const chat = await Chat.findById(id);
-    if (!chat) {
-      return res.status(404).json({ success: false, error: 'Chat not found' });
-    }
-    
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    const messages = await Message.find({ chatId: id })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .populate('senderId', 'name avatar');
-      
-    messages.reverse(); // chronological order
-    
-    res.json({
-      success: true,
-      data: messages,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        hasMore: messages.length === parseInt(limit)
-      }
-    });
-  } catch (error) {
-    console.error('Oversee messages error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

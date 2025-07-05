@@ -1,11 +1,9 @@
-require('dotenv').config(); // Load environment variables at the very top
+require('dotenv').config();
 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
 const http = require('http');
 const socketIo = require('socket.io');
 const helmet = require('helmet');
@@ -31,14 +29,21 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// More robust CORS setup
+// CORS setup
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+    const allowedOrigins = [
+      'http://localhost:5173', 
+      'http://localhost:5174', 
+      'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174'
+    ];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      console.warn(`CORS blocked origin: ${origin}`);
+      callback(null, true); // Allow all origins in development
     }
   },
   credentials: true,
@@ -46,18 +51,14 @@ const corsOptions = {
   allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With']
 };
 
-// Use CORS options for all routes
 app.use(cors(corsOptions));
-
-// Explicitly handle pre-flight requests
 app.options('*', cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200 // Increased limit
+  max: 200 // Increased limit for development
 });
-// app.use('/api/', limiter);
 
 // Socket.io setup
 const io = socketIo(server, {
@@ -68,72 +69,31 @@ const io = socketIo(server, {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// JWT Secret
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-jwt-key-change-in-production-2024';
-
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Database connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/iibchat';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/iib-chat';
 
-mongoose.connect(MONGODB_URI, {
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-})
-.then(() => {
-  console.log('✅ Connected to MongoDB');
-  initializeApp();
-})
-.catch((err) => {
-  console.error('❌ MongoDB connection error:', err);
-  process.exit(1);
-});
+async function connectToDatabase() {
+  try {
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    console.log('✅ Connected to MongoDB');
+    return true;
+  } catch (err) {
+    console.error('❌ MongoDB connection failed:', err.message);
+    process.exit(1);
+  }
+}
 
 // Models
 const { User, PendingUser, Chat, Message, UserSettings } = require('./models');
 
-// Middleware for JWT authentication
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    req.user = decoded;
-    next();
-  });
-};
-
-// Validation middleware
-const validateRegistration = [
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters')
-];
-
-const validateLogin = [
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
-  body('password').exists().withMessage('Password required')
-];
-
-// Helper function to handle validation errors
-const handleValidationErrors = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ 
-      error: 'Validation failed', 
-      details: errors.array() 
-    });
-  }
-  next();
-};
+// Import middleware functions
+const { authenticateToken, requireManager } = require('./middleware/auth');
 
 // Pass io object to routes that need it
 app.use((req, res, next) => {
@@ -141,9 +101,19 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- API Routes ---
-// The order is important here. More specific routes should come first.
-app.use('/api/auth', authRoutes); // Moved from the generic '/api' to be more specific
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  const databaseStatus = mongoose.connection.readyState === 1 ? 'mongodb-connected' : 'mongodb-disconnected';
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: databaseStatus
+  });
+});
+
+// API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/chats', chatsRoutes);
 app.use('/api/upload', uploadRoutes);
@@ -152,23 +122,159 @@ app.use('/api/search', searchRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/broadcasts', broadcastsRoutes);
 
-// ==================== HEALTH CHECK ====================
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  });
+// Additional routes that frontend expects
+app.get('/api/pending-users', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const pendingUsers = await PendingUser.find({ status: 'pending' })
+      .select('-password')
+      .sort({ createdAt: -1 });
+    
+    res.json(pendingUsers);
+  } catch (error) {
+    console.error('Get pending users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-// ==================== SOCKET.IO LOGIC ====================
+app.post('/api/pending-users/:id/approve', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const pendingUser = await PendingUser.findById(id);
+    if (!pendingUser) {
+      return res.status(404).json({ error: 'Pending user not found' });
+    }
+
+    const newUser = new User({
+      name: pendingUser.name,
+      email: pendingUser.email,
+      password: pendingUser.password,
+      role: 'employee',
+      isApproved: true,
+      status: 'offline'
+    });
+
+    await newUser.save();
+    await PendingUser.findByIdAndDelete(id);
+
+    req.io.emit('user-approved', { userId: newUser._id });
+
+    res.json({ success: true, user: newUser.toJSON() });
+  } catch (error) {
+    console.error('Approve user error:', error);
+    res.status(500).json({ error: 'Failed to approve user' });
+  }
+});
+
+app.post('/api/pending-users/:id/reject', authenticateToken, requireManager, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await PendingUser.findByIdAndDelete(id);
+    if (!result) {
+      return res.status(404).json({ error: 'Pending user not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Reject user error:', error);
+    res.status(500).json({ error: 'Failed to reject user' });
+  }
+});
+
+app.get('/api/messages/:chatId', authenticateToken, async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    
+    const messages = await Message.find({ chatId })
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+    
+    res.json(messages.reverse());
+  } catch (error) {
+    console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+app.post('/api/messages', authenticateToken, async (req, res) => {
+  try {
+    const { chatId, content, type = 'text', replyTo } = req.body;
+    
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const message = new Message({
+      chatId,
+      senderId: req.user.userId,
+      senderName: user.name,
+      content,
+      type,
+      replyTo,
+      reactions: [],
+      readBy: [{
+        userId: req.user.userId,
+        readAt: new Date()
+      }]
+    });
+
+    await message.save();
+
+    // Convert to JSON and ensure all fields are present
+    const messageData = {
+      id: message._id.toString(),
+      chatId: message.chatId,
+      senderId: message.senderId,
+      senderName: message.senderName,
+      content: message.content,
+      type: message.type,
+      timestamp: message.createdAt,
+      replyTo: message.replyTo,
+      reactions: message.reactions,
+      readBy: message.readBy,
+      isDeleted: false
+    };
+
+    // Emit to all users in the chat
+    req.io.to(chatId).emit('receive-message', messageData);
+    
+    // Also emit to general room for notifications
+    req.io.emit('new-message', {
+      chatId,
+      message: messageData
+    });
+
+    res.json(messageData);
+  } catch (error) {
+    console.error('Send message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+app.get('/api/user-settings', authenticateToken, async (req, res) => {
+  try {
+    let settings = await UserSettings.findOne({ userId: req.user.userId });
+    
+    if (!settings) {
+      settings = new UserSettings({ userId: req.user.userId });
+      await settings.save();
+    }
+    
+    res.json(settings.toJSON());
+  } catch (error) {
+    console.error('Get user settings error:', error);
+    res.status(500).json({ error: 'Failed to fetch user settings' });
+  }
+});
+
+// Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`✅ User connected: ${socket.id}`);
   
-  // Join user to their personal room
   socket.on('join-user', (userId) => {
     if (userId) {
       socket.join(userId);
@@ -176,7 +282,6 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Join chat room
   socket.on('join-chat', (chatId) => {
     if (chatId) {
       socket.join(chatId);
@@ -184,7 +289,6 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Leave chat room
   socket.on('leave-chat', (chatId) => {
     if (chatId) {
       socket.leave(chatId);
@@ -192,25 +296,24 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Handle typing
   socket.on('typing', ({ chatId, userName }) => {
     socket.to(chatId).emit('user-typing', { chatId, userName });
   });
   
-  // Handle disconnect
+  socket.on('stop-typing', ({ chatId, userName }) => {
+    socket.to(chatId).emit('user-stop-typing', { chatId, userName });
+  });
+  
   socket.on('disconnect', () => {
     console.log(`❌ User disconnected: ${socket.id}`);
   });
 });
 
-// ==================== ERROR HANDLING ====================
-
-// 404 handler
+// Error handling
 app.use((req, res, next) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error('Global error:', err);
   res.status(500).json({ 
@@ -219,22 +322,34 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ==================== INITIALIZATION ====================
-
-async function initializeApp() {
+// Initialize default data
+async function createDefaultAdmin() {
   try {
-    // Create default chats if they don't exist
-    await createDefaultChats();
+    const managerCount = await User.countDocuments({ role: 'manager', isApproved: true });
     
-    console.log('✅ App initialized successfully');
+    if (managerCount === 0) {
+      const hashedPassword = await bcrypt.hash('Admin123', 12);
+      
+      const admin = new User({
+        name: 'Administrator',
+        email: 'admin@iibchat.com',
+        password: hashedPassword,
+        role: 'manager',
+        isApproved: true,
+        status: 'online',
+        avatar: ''
+      });
+      
+      await admin.save();
+      console.log('✅ Default admin created (admin@iibchat.com / Admin123)');
+    }
   } catch (error) {
-    console.error('❌ App initialization failed:', error);
+    console.error('Error creating default admin:', error);
   }
 }
 
 async function createDefaultChats() {
   try {
-    // Create General Chat
     const generalChatExists = await Chat.findOne({ type: 'general' });
     if (!generalChatExists) {
       const generalChat = new Chat({
@@ -247,7 +362,6 @@ async function createDefaultChats() {
       console.log('✅ General chat created');
     }
     
-    // Create Announcements Chat
     const announcementsChatExists = await Chat.findOne({ type: 'announcements' });
     if (!announcementsChatExists) {
       const announcementsChat = new Chat({
@@ -264,15 +378,31 @@ async function createDefaultChats() {
   }
 }
 
-// ==================== SERVER START ====================
+async function initializeApp() {
+  try {
+    await createDefaultAdmin();
+    await createDefaultChats();
+    console.log('✅ App initialized successfully');
+  } catch (error) {
+    console.error('❌ App initialization failed:', error);
+  }
+}
 
+// Start server
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
-  console.log(`🌐 Backend API available at: http://localhost:${PORT}/api`);
-});
+async function startServer() {
+  await connectToDatabase();
+  await initializeApp();
+  
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
+    console.log(`🌐 Backend API available at: http://localhost:${PORT}/api`);
+  });
+}
+
+startServer();
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
