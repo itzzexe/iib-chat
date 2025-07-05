@@ -295,9 +295,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
           dispatch({ type: 'UPDATE_CHAT', payload: updatedChat });
         }
         
-        // Play sound if message is not from current user and window is not focused
-        if (message.senderId !== state.currentUser?.id && !document.hasFocus()) {
+        // Show notification and play sound if message is not from current user
+        if (message.senderId !== state.currentUser?.id) {
+          // Play notification sound
           playNotificationSound();
+          
+                     // Show browser notification if permissions granted and window is not focused
+           if (state.notifications.granted && !document.hasFocus()) {
+             const chatName = chatToUpdate ? getChatDisplayName(chatToUpdate) : 'Unknown Chat';
+            
+            try {
+              const notification = new Notification(`New message from ${message.senderName}`, {
+                body: message.content.length > 100 ? message.content.substring(0, 100) + '...' : message.content,
+                icon: '/favicon.ico',
+                tag: `chat-${message.chatId}`,
+                requireInteraction: false,
+                silent: false
+              });
+              
+              // Auto-close notification after 5 seconds
+              setTimeout(() => {
+                notification.close();
+              }, 5000);
+              
+              // Click to focus window and open chat
+              notification.onclick = () => {
+                window.focus();
+                setActiveChat(message.chatId!);
+                notification.close();
+              };
+            } catch (error) {
+              console.warn('Failed to show notification:', error);
+            }
+          }
         }
       };
       const updatedHandler = (message: Message) => {
@@ -953,8 +983,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateUserRole = async (userId: string, newRole: 'manager' | 'employee') => {
     try {
       const user = state.users.find(u => u.id === userId);
-      if (user && user.email !== 'iibadmin@iib.com') { // Prevent changing admin role
-        const updatedUser = await dataServiceAPI.updateUser(userId, { role: newRole });
+      if (user && user.email !== 'admin@app.com') { // Prevent changing admin role
+        const updatedUser = await dataServiceAPI.updateUserRole(userId, newRole);
         dispatch({ type: 'UPDATE_USER', payload: updatedUser });
       }
     } catch (error) {

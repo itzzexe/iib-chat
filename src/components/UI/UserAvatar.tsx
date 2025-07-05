@@ -19,7 +19,7 @@ export default function UserAvatar({
     xs: 'w-6 h-6 text-xs',
     sm: 'w-8 h-8 text-sm',
     md: 'w-10 h-10 text-base',
-    lg: 'w-12 h-12 text-lg'
+    lg: 'w-16 h-16 text-xl'
   };
 
   const statusPositions = {
@@ -70,11 +70,31 @@ export default function UserAvatar({
 
   const initials = getInitials(user.name);
   const backgroundColor = getBackgroundColor(user.name);
+  const hasAvatar = user.avatar && user.avatar.trim() !== '';
 
   return (
     <div className={`relative ${className}`}>
+      {hasAvatar ? (
+        // Show actual image if available
+        <img
+          src={user.avatar}
+          alt={user.name}
+          className={`${sizeClasses[size]} rounded-full object-cover shadow-lg border-2 border-white dark:border-secondary-800 select-none`}
+          onError={(e) => {
+            // If image fails to load, hide it and show initials instead
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+            const fallback = target.nextElementSibling as HTMLElement;
+            if (fallback) {
+              fallback.style.display = 'flex';
+            }
+          }}
+        />
+      ) : null}
+      
+      {/* Fallback initials (shown if no avatar or if image fails to load) */}
       <div
-        className={`${sizeClasses[size]} ${backgroundColor} rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-secondary-800 select-none`}
+        className={`${sizeClasses[size]} ${backgroundColor} rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-secondary-800 select-none ${hasAvatar ? 'hidden' : 'flex'}`}
         title={user.name}
         style={{ 
           minWidth: sizeClasses[size].split(' ')[0].replace('w-', '').replace('h-', '') + 'px',
@@ -83,6 +103,7 @@ export default function UserAvatar({
       >
         {initials}
       </div>
+      
       {showStatus && (
         <UserStatusIndicator 
           status={user.status} 

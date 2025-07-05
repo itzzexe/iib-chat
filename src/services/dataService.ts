@@ -311,6 +311,18 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
   );
 };
 
+export const updateUserRole = async (userId: string, role: 'manager' | 'employee'): Promise<User> => {
+  return withToast(
+    async () => {
+      const response = await api.patch(`/users/${userId}/role`, { role });
+      return response.data.data;
+    },
+    'Updating user role...',
+    'User role updated successfully!',
+    'Failed to update user role'
+  );
+};
+
 export const deleteUser = async (userId: string): Promise<void> => {
   return withToast(
     async () => {
@@ -746,8 +758,8 @@ export const uploadAvatar = async (file: File): Promise<User> => {
     async () => {
       const formData = new FormData();
       formData.append('avatar', file);
-
-      const response = await api.put('/users/me/avatar', formData, {
+      
+      const response = await api.post('/upload/avatar', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -755,9 +767,36 @@ export const uploadAvatar = async (file: File): Promise<User> => {
       
       return response.data.data;
     },
-    'Uploading new photo...',
-    'Profile photo updated!',
-    'Failed to upload photo'
+    'Uploading avatar...',
+    'Avatar uploaded successfully!',
+    'Failed to upload avatar'
+  );
+};
+
+// Combined function for updating user profile (name and avatar)
+export const updateUserProfile = async (userId: string, name: string, avatarFile: File | null): Promise<User> => {
+  return withToast(
+    async () => {
+      let updatedUser: User;
+      
+      // Upload avatar if provided
+      if (avatarFile) {
+        updatedUser = await uploadAvatar(avatarFile);
+      } else {
+        // Just get current user data
+        updatedUser = await getCurrentUser();
+      }
+      
+      // Update name if it's different
+      if (name !== updatedUser.name) {
+        updatedUser = await updateUser(userId, { name });
+      }
+      
+      return updatedUser;
+    },
+    'Updating profile...',
+    'Profile updated successfully!',
+    'Failed to update profile'
   );
 };
 
@@ -822,6 +861,7 @@ export default {
   getCurrentUser,
   getUsers,
   updateUser,
+  updateUserRole,
   deleteUser,
   
   // Pending Users
@@ -901,5 +941,8 @@ export default {
   deleteChat,
   
   // New function
-  clearChatMessages
+  clearChatMessages,
+  
+  // New function
+  updateUserProfile
 };

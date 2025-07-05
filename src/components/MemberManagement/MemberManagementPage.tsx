@@ -310,7 +310,7 @@ export default function MemberManagementPage() {
                             <span className="font-medium capitalize">{user.role}</span>
                           </div>
                           {/* Edit Role Button - Only for non-admin users */}
-                          {currentUser?.role === 'manager' && user.email !== 'iibadmin@iib.com' && (
+                          {currentUser?.role === 'manager' && user.email !== 'admin@app.com' && (
                             <>
                               <button
                                 onClick={() => {

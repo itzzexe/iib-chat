@@ -47,7 +47,7 @@ const corsOptions = {
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With']
 };
 
@@ -328,11 +328,11 @@ async function createDefaultAdmin() {
     const managerCount = await User.countDocuments({ role: 'manager', isApproved: true });
     
     if (managerCount === 0) {
-      const hashedPassword = await bcrypt.hash('Admin123', 12);
+      const hashedPassword = await bcrypt.hash('admin123', 12);
       
       const admin = new User({
         name: 'Administrator',
-        email: 'admin@iibchat.com',
+        email: 'admin@app.com',
         password: hashedPassword,
         role: 'manager',
         isApproved: true,
@@ -341,7 +341,7 @@ async function createDefaultAdmin() {
       });
       
       await admin.save();
-      console.log('✅ Default admin created (admin@iibchat.com / Admin123)');
+      console.log('✅ Default admin created (admin@app.com / admin123)');
     }
   } catch (error) {
     console.error('Error creating default admin:', error);
