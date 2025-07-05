@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { format, isToday, isYesterday, parseISO, isValid } from 'date-fns';
-import { AlertTriangle, FileText, Download, Edit, Trash2, Smile, MoreHorizontal, Save, X, CornerUpLeft, Check, CheckCheck } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Message, LinkPreviewData } from '../../types';
+import { Heart, Reply, Edit2, Trash2, Download, ExternalLink, Smile, CornerUpLeft, Edit, AlertTriangle } from 'lucide-react';
+import { formatDistanceToNow, parseISO, isValid, format, isToday, isYesterday } from 'date-fns';
 import UserAvatar from '../UI/UserAvatar';
-import EmojiPicker from '../UI/EmojiPicker';
-import { getLinkMetadata } from '../../services/dataService';
 import LinkPreviewCard from './LinkPreviewCard';
+import { Message, LinkPreviewData } from '../../types';
+import { getLinkMetadata } from '../../services/dataService';
 
 interface MessageListProps {
   messages: Message[];
@@ -316,13 +315,13 @@ export default function MessageList({ messages }: MessageListProps) {
                           onClick={() => setEditingMessage({ id: message.id, content: message.content })}
                           className="p-1 rounded hover:bg-secondary-200 dark:hover:bg-secondary-600 text-secondary-500 dark:text-secondary-400"
                         >
-                          <Edit className="w-3 h-3" />
+                          <Edit2 className="w-3 h-3" />
                         </button>
                         <button 
                           onClick={() => setReplyingTo(message)}
                           className="p-1 rounded hover:bg-secondary-200 dark:hover:bg-secondary-600 text-secondary-500 dark:text-secondary-400"
                         >
-                          <CornerUpLeft className="w-3 h-3" />
+                          <Reply className="w-3 h-3" />
                         </button>
                         <button 
                           onClick={() => deleteMessage(message.chatId!, message.id)}
@@ -339,7 +338,7 @@ export default function MessageList({ messages }: MessageListProps) {
                         onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
                         className="p-1 rounded hover:bg-secondary-200 dark:hover:bg-secondary-700 text-secondary-500 dark:text-secondary-400"
                       >
-                        <Smile className="w-3 h-3" />
+                        <Heart className="w-3 h-3" />
                       </button>
                       
                       {showEmojiPicker === message.id && (

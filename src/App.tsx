@@ -20,6 +20,9 @@ function App() {
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Move useApp hook outside of try-catch to avoid conditional hook calls
+  const { currentUser, currentScreen, requestNotificationPermission, notifications, loading, isModalOpen, modalContent, openModal, closeModal } = useApp();
+
   // Error boundary functionality
   useEffect(() => {
     const handleError = (error: ErrorEvent) => {
@@ -42,6 +45,27 @@ function App() {
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, []);
+
+  useEffect(() => {
+    // Request notification permission on app load
+    if (!notifications.requested && 'Notification' in window) {
+      requestNotificationPermission();
+    }
+  }, [notifications.requested, requestNotificationPermission]);
+
+  useEffect(() => {
+    // فتح النوافذ المنبثقة للشاشات الثانوية
+    if (currentScreen === 'settings') {
+      openModal(<SettingsPage />);
+    } else if (currentScreen === 'profile') {
+      openModal(<UserProfile />);
+    } else if (currentScreen === 'start-chat') {
+      openModal(<StartChatModal isOpen={true} onClose={closeModal} />);
+    } else {
+      closeModal();
+    }
+    // eslint-disable-next-line
+  }, [currentScreen]);
 
   // If there's an error, show error screen
   if (hasError) {
@@ -73,29 +97,6 @@ function App() {
   }
 
   try {
-    const { currentUser, currentScreen, requestNotificationPermission, notifications, loading, isModalOpen, modalContent, openModal, closeModal } = useApp();
-
-    useEffect(() => {
-      // Request notification permission on app load
-      if (!notifications.requested && 'Notification' in window) {
-        requestNotificationPermission();
-      }
-    }, [notifications.requested, requestNotificationPermission]);
-
-    useEffect(() => {
-      // فتح النوافذ المنبثقة للشاشات الثانوية
-      if (currentScreen === 'settings') {
-        openModal(<SettingsPage />);
-      } else if (currentScreen === 'profile') {
-        openModal(<UserProfile />);
-      } else if (currentScreen === 'start-chat') {
-        openModal(<StartChatModal isOpen={true} onClose={closeModal} />);
-      } else {
-        closeModal();
-      }
-      // eslint-disable-next-line
-    }, [currentScreen]);
-
     if (loading) {
       return (
         <div className="h-screen flex items-center justify-center bg-secondary-50 dark:bg-secondary-900">
@@ -149,18 +150,22 @@ function App() {
 
     return (
       <div className="h-screen flex bg-secondary-50 dark:bg-secondary-900 overflow-hidden">
+        {/* Sidebar with responsive width */}
         <div className="w-64 lg:w-80 flex-shrink-0 border-r border-secondary-200 dark:border-secondary-700">
           <Sidebar />
         </div>
         
+        {/* Main content area - takes remaining space */}
         <div className="flex-1 flex flex-col min-w-0">
           {renderCurrentScreen()}
         </div>
         
+        {/* Modal for popups */}
         <Modal isOpen={isModalOpen} onClose={closeModal}>
           {modalContent}
         </Modal>
         
+        {/* Toast notifications */}
         <Toaster
           position="top-right"
           toastOptions={{

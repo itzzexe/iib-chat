@@ -6,28 +6,26 @@ import RegistrationForm from './RegistrationForm';
 
 export default function LoginForm() {
   const { t } = useTranslation();
-  const { login, darkMode } = useApp();
+  const { login } = useApp();
   const [showRegistration, setShowRegistration] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setIsLoading(true);
 
-    const success = await login(formData.email, formData.password);
+    const success = await login(email, password);
     
     if (!success) {
       setError('Invalid email or password. Try the demo accounts.');
     }
     
-    setLoading(false);
+    setIsLoading(false);
   };
 
 
@@ -69,8 +67,8 @@ export default function LoginForm() {
                 id="email"
                 type="email"
                 required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-secondary-50 dark:bg-secondary-900 border border-secondary-300 dark:border-secondary-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-secondary-900 dark:text-white"
                 placeholder={t('login.emailPlaceholder')}
               />
@@ -85,8 +83,8 @@ export default function LoginForm() {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   required
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 pr-12 bg-secondary-50 dark:bg-secondary-900 border border-secondary-300 dark:border-secondary-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-secondary-900 dark:text-white"
                   placeholder={t('login.passwordPlaceholder')}
                 />
@@ -102,10 +100,10 @@ export default function LoginForm() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={isLoading}
               className="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-primary-400 text-white py-3 px-4 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:scale-100 shadow-lg hover:shadow-xl disabled:shadow-md"
             >
-              {loading ? (
+              {isLoading ? (
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   {t('login.button')}

@@ -1,3 +1,17 @@
+export type UserStatus = 'online' | 'offline' | 'away' | 'busy';
+
+export type AppScreen = 
+  | 'chat' 
+  | 'settings' 
+  | 'user-requests' 
+  | 'member-management' 
+  | 'private-chat-oversight' 
+  | 'profile' 
+  | 'search-results' 
+  | 'admin-dashboard' 
+  | 'audit-log' 
+  | 'start-chat';
+
 export interface User {
   id: string;
   name: string;
@@ -5,13 +19,11 @@ export interface User {
   password?: string; // For admin account
   role: 'manager' | 'employee';
   avatar?: string;
-  status: 'online' | 'offline' | 'away' | 'busy';
+  status: UserStatus;
   lastSeen: Date;
   isApproved?: boolean;
   registeredAt?: Date;
 }
-
-export type UserStatus = 'online' | 'offline' | 'away' | 'busy';
 
 export interface PendingUser {
   id: string;
@@ -21,6 +33,7 @@ export interface PendingUser {
   role: 'employee';
   requestedAt: Date;
   status: 'pending' | 'approved' | 'rejected';
+  isManager?: boolean;
 }
 
 export interface Message {
@@ -29,35 +42,51 @@ export interface Message {
   senderId: string;
   senderName: string;
   content: string;
-  timestamp: Date;
   type: 'text' | 'file' | 'announcement';
-  fileUrl?: string;
-  fileName?: string;
-  fileType?: string;
-  isUrgent?: boolean;
-  reactions: Reaction[];
+  timestamp: Date;
+  reactions: MessageReaction[];
+  readBy: MessageReadStatus[];
+  replyTo?: string;
   isDeleted?: boolean;
   editedAt?: Date;
-  replyTo?: string;
-  replyToContent?: string;
-  replyToSender?: string;
-  readBy: {
-    userId: string;
-    readAt: Date;
-  }[];
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  fileMimeType?: string;
+  isUrgent?: boolean;
+}
+
+export interface MessageReaction {
+  emoji: string;
+  userId: string;
+  userName: string;
+  timestamp: Date;
+}
+
+export interface MessageReadStatus {
+  userId: string;
+  readAt: Date;
 }
 
 export interface LinkPreviewData {
-  ogTitle?: string;
-  ogDescription?: string;
-  ogImage?: { url: string }[];
-  ogUrl?: string;
+  url: string;
+  title?: string;
+  description?: string;
+  image?: string;
+  siteName?: string;
   success: boolean;
 }
 
-export type SearchResult = Omit<Message, 'chatId'> & {
-  chat: Chat;
-};
+export interface SearchResult {
+  id: string;
+  type: 'message' | 'user' | 'chat';
+  title: string;
+  content: string;
+  chatId?: string;
+  userId?: string;
+  timestamp?: Date;
+  relevance: number;
+}
 
 export interface Reaction {
   emoji: string;
@@ -70,16 +99,11 @@ export interface Chat {
   name: string;
   type: 'direct' | 'group' | 'general' | 'announcements';
   participants: string[];
-  lastMessage?: {
-    content: string;
-    senderId: string;
-    senderName: string;
-    timestamp: Date;
-  };
+  lastMessage?: Message;
   unreadCount: number;
   isArchived: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface NotificationSettings {
@@ -92,20 +116,10 @@ export interface UserSettings {
   theme: 'light' | 'dark' | 'auto';
   language: 'en' | 'ar';
   notifications: boolean;
-  status: 'online' | 'offline' | 'away' | 'busy';
+  soundEnabled: boolean;
+  emailNotifications: boolean;
+  status: UserStatus;
 }
-
-export type AppScreen =
-  | 'chat'
-  | 'settings'
-  | 'user-requests'
-  | 'member-management'
-  | 'private-chat-oversight'
-  | 'profile'
-  | 'admin-dashboard'
-  | 'audit-log'
-  | 'search-results'
-  | 'start-chat';
 
 export interface AppState {
   loading: boolean;
@@ -129,10 +143,11 @@ export interface AppState {
 }
 
 export interface FileUpload {
-  file: File;
-  preview?: string;
-  progress: number;
-  id: string;
+  filename: string;
+  originalName: string;
+  mimetype: string;
+  size: number;
+  url: string;
 }
 
 export interface AuditLog {
@@ -149,7 +164,16 @@ export interface AuditLog {
 }
 
 export interface BroadcastMessage {
+  id: string;
+  senderId: string;
   senderName: string;
   message: string;
-  timestamp: string;
+  timestamp: Date;
+  isUrgent: boolean;
+}
+
+export interface NotificationState {
+  enabled: boolean;
+  granted: boolean;
+  requested: boolean;
 }

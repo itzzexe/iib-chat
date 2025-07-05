@@ -1,25 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { 
   MessageSquare, 
-  Users, 
-  Bell, 
+  Search, 
   Settings, 
+  Users, 
+  Shield, 
+  FileText, 
+  BarChart3,
+  User,
+  LogOut
+} from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import UserAvatar from '../UI/UserAvatar';
+import UserStatusIndicator from '../UI/UserStatusIndicator';
+import { 
+  Bell, 
   Archive, 
-  Search,
   Moon,
   Sun,
-  LogOut,
   Plus,
   Hash,
   AtSign,
   UserPlus,
   ShieldCheck,
-  BarChart,
   BookCopy
 } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
-import { UserStatus } from '../../types';
-import UserStatusIndicator from '../UI/UserStatusIndicator';
 import StartChatModal from '../Chat/StartChatModal';
 import UserRequestsPage from '../UserRequests/UserRequestsPage';
 import MemberManagementPage from '../MemberManagement/MemberManagementPage';
@@ -27,26 +33,27 @@ import PrivateChatOversight from '../MemberManagement/PrivateChatOversight';
 import SettingsPage from '../Settings/SettingsPage';
 
 export default function Sidebar() {
+  const { t } = useTranslation();
   const { 
     currentUser, 
-    chats, 
     users, 
+    chats, 
     activeChat, 
-    darkMode, 
-    searchQuery,
-    currentScreen,
     setActiveChat, 
-    setCurrentScreen,
-    toggleDarkMode, 
-    logout,
-    searchMessages,
-    updateUserStatus,
-    getPendingUsersCount,
-    openModal,
-    closeModal,
-    performSearch
+    setCurrentScreen, 
+    logout, 
+    darkMode, 
+    toggleDarkMode,
+    pendingUsers,
+    getPendingUsersCount
   } = useApp();
-  
+
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleLogout = () => {
+    logout();
+  };
+
   const [showArchived, setShowArchived] = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [showStartChatModal, setShowStartChatModal] = useState(false);
@@ -330,7 +337,7 @@ export default function Sidebar() {
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <BarChart className="w-4 h-4" />
+                  <BarChart3 className="w-4 h-4" />
                   <span className="text-sm font-medium">Dashboard</span>
                 </div>
               </button>
@@ -414,7 +421,7 @@ export default function Sidebar() {
             </button>
             
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="flex items-center justify-center p-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors"
               title="Logout"
             >

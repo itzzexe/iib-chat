@@ -69,34 +69,34 @@ cd iib-chat
 ### Option 2: Manual Setup
 
 1. **Clone the repository**
-   ```bash
+    ```bash
    git clone https://github.com/itzzexe/iib-chat.git
-   cd iib-chat
-   ```
+    cd iib-chat
+    ```
 
 2. **Install dependencies**
-   ```bash
+    ```bash
    # Install frontend dependencies
    npm install
 
    # Install backend dependencies
-   cd server
-   npm install
-   cd ..
-   ```
+    cd server
+    npm install
+    cd .. 
+    ```
 
 3. **Start the application**
-   
+
    **Terminal 1 - Backend:**
-   ```bash
+    ```bash
    cd server
    npm start
-   ```
+    ```
 
    **Terminal 2 - Frontend:**
-   ```bash
-   npm run dev
-   ```
+    ```bash
+    npm run dev
+    ```
 
 ## 🌐 Access the Application
 
