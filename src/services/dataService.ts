@@ -6,6 +6,7 @@ import { User, Chat, Message, PendingUser, UserSettings } from '../types';
 // API Configuration
 const API_BASE_URL = 'http://localhost:3000/api';
 const SOCKET_URL = 'http://localhost:3000';
+const SERVER_BASE_URL = 'http://localhost:3000';
 
 // Create axios instance with default config
 const api = axios.create({
@@ -213,17 +214,20 @@ export const login = async (email: string, password: string): Promise<{ user: Us
   const response = await api.post('/auth/login', { email, password });
   const { user, token } = response.data;
   
+  // Process user data to fix avatar URL
+  const processedUser = processUserData(user);
+  
   localStorage.setItem('token', token);
-  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('user', JSON.stringify(processedUser));
   
   // Connect socket after successful login
   try {
-    await connectSocket(user.id);
+    await connectSocket(processedUser.id);
   } catch (error) {
     console.warn('Failed to connect socket during login:', error);
   }
   
-  return { user, token };
+  return { user: processedUser, token };
 };
 
 export const register = async (userData: {
@@ -278,32 +282,45 @@ export const createAdmin = async (): Promise<{ message: string; credentials: any
   );
 };
 
+// Helper function to process user data - always return undefined for avatar to force initials
+const processUserData = (user: any): User => {
+  return {
+    ...user,
+    avatar: undefined // Always use initials instead of images
+  };
+};
+
 // ==================== USER MANAGEMENT ====================
 
 export const getCurrentUser = async (): Promise<User> => {
   const response = await api.get('/users/me');
-  return response.data;
+  return processUserData(response.data);
 };
 
 export const getUsers = async (): Promise<User[]> => {
   const response = await api.get('/users');
   // Ensure we return an array even if the response format is different
   const data = response.data;
+  let users: any[] = [];
+  
   if (data && data.success && Array.isArray(data.data)) {
-    return data.data;
+    users = data.data;
   } else if (Array.isArray(data)) {
-    return data;
+    users = data;
   } else {
     console.warn('Unexpected users response format:', data);
     return [];
   }
+  
+  // Process all users to fix avatar URLs
+  return users.map(processUserData);
 };
 
 export const updateUser = async (userId: string, updates: Partial<User>): Promise<User> => {
   return withToast(
     async () => {
       const response = await api.put(`/users/${userId}`, updates);
-      return response.data;
+      return processUserData(response.data);
     },
     'Updating user...',
     'User updated successfully!',
@@ -694,7 +711,12 @@ export const handleApiError = (error: any): string => {
 export const getStoredUser = (): User | null => {
   try {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      // Process the user data to fix avatar URL
+      return processUserData(user);
+    }
+    return null;
   } catch {
     return null;
   }
@@ -759,13 +781,18 @@ export const uploadAvatar = async (file: File): Promise<User> => {
       const formData = new FormData();
       formData.append('avatar', file);
       
-      const response = await api.post('/upload/avatar', formData, {
+      const response = await api.put('/users/me/avatar', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       
-      return response.data.data;
+      const updatedUser = processUserData(response.data.data);
+      
+      // Update stored user data
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      return updatedUser;
     },
     'Uploading avatar...',
     'Avatar uploaded successfully!',

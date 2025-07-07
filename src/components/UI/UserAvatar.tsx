@@ -29,14 +29,10 @@ export default function UserAvatar({
     lg: '-bottom-1.5 -right-1.5'
   };
 
-  // Get initials from user name
+  // Get first character only from user name
   const getInitials = (name: string) => {
     if (!name) return '?';
-    const words = name.trim().split(' ');
-    if (words.length === 1) {
-      return words[0].charAt(0).toUpperCase();
-    }
-    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+    return name.trim().charAt(0).toUpperCase();
   };
 
   // Generate consistent color based on user name

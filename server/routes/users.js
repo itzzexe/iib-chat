@@ -350,16 +350,9 @@ router.put('/:id/settings', authenticateToken, validateObjectId(), validateUserS
   }
 });
 
-// Update user avatar
-router.put('/me/avatar', authenticateToken, uploadAvatar.single('avatar'), async (req, res) => {
+// Update user avatar - disabled, always use initials
+router.put('/me/avatar', authenticateToken, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: 'No file uploaded.'
-      });
-    }
-
     const user = await User.findById(req.user.userId);
     if (!user) {
       return res.status(404).json({
@@ -368,14 +361,13 @@ router.put('/me/avatar', authenticateToken, uploadAvatar.single('avatar'), async
       });
     }
 
-    // The path should be accessible from the frontend
-    const avatarPath = `/uploads/avatars/${req.file.filename}`;
-    user.avatar = avatarPath;
+    // Always clear avatar to force using initials
+    user.avatar = undefined;
     await user.save();
 
     res.json({
       success: true,
-      message: 'Avatar updated successfully',
+      message: 'Avatar cleared - using initials',
       data: user.toJSON()
     });
 

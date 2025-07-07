@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Settings, 
@@ -10,7 +10,7 @@ import {
   User, 
   Globe, 
   Activity,
-  Camera,
+
   Save,
   ArrowLeft
 } from 'lucide-react';
@@ -30,14 +30,9 @@ export default function SettingsPage() {
   } = useApp();
 
   const [profileForm, setProfileForm] = useState({
-    name: currentUser?.name || '',
-    avatar: currentUser?.avatar || ''
+    name: currentUser?.name || ''
   });
   
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(currentUser?.avatar || null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [profileSaving, setProfileSaving] = useState(false);
 
   if (!currentUser) return null;
@@ -71,16 +66,8 @@ export default function SettingsPage() {
 
   const handleProfileSave = async () => {
     setProfileSaving(true);
-    await updateUserProfile(profileForm.name, selectedFile);
+    await updateUserProfile(profileForm.name, null);
     setProfileSaving(false);
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
   };
 
   const getStatusColor = (status: string) => {
@@ -137,27 +124,15 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1">
-                  Profile Picture
+                  Avatar Initial
                 </label>
                 <div className="flex items-center gap-4">
-                   <img
-                    src={previewUrl || 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150'}
-                    alt="Profile preview"
-                    className="w-16 h-16 rounded-full object-cover border-2 border-white dark:border-secondary-800"
-                  />
-                  <input 
-                    type="file" 
-                    ref={fileInputRef}
-                    onChange={handleFileSelect}
-                    accept="image/png, image/jpeg, image/gif"
-                    className="hidden" 
-                  />
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-secondary-200 dark:bg-secondary-700 rounded-lg hover:bg-secondary-300 dark:hover:bg-secondary-600 text-secondary-600 dark:text-secondary-400 text-sm font-medium"
-                  >
-                    Change Photo
-                  </button>
+                  <div className="w-16 h-16 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-2xl font-bold text-primary-600 dark:text-primary-400 border-2 border-white dark:border-secondary-800">
+                    {profileForm.name.charAt(0).toUpperCase()}
+                  </div>
+                  <p className="text-sm text-secondary-600 dark:text-secondary-400">
+                    Your avatar will show the first letter of your name
+                  </p>
                 </div>
               </div>
             </div>

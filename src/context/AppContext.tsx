@@ -871,8 +871,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatedUser = await dataServiceAPI.updateUser(state.currentUser.id, { name });
       }
 
-      dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+      // Update local storage and state
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+      
+      // Update the user in the users list as well
+      const updatedUsers = state.users.map(user => 
+        user.id === updatedUser.id ? updatedUser : user
+      );
+      dispatch({ type: 'SET_USERS', payload: updatedUsers });
 
     } catch (error) {
       console.error('Failed to update profile:', error);
