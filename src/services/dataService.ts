@@ -585,20 +585,17 @@ export const sendMessageWithFile = async (messageData: {
 // ==================== USER SETTINGS ====================
 
 export const getUserSettings = async (): Promise<UserSettings> => {
-  const response = await api.get('/user-settings');
-  return response.data;
+  const user = getStoredUser();
+  if (!user) throw new Error('No user found');
+  const response = await api.get(`/users/${user.id}/settings`);
+  return response.data.data;
 };
 
 export const updateUserSettings = async (settings: Partial<UserSettings>): Promise<UserSettings> => {
-  return withToast(
-    async () => {
-      const response = await api.put('/user-settings', settings);
-      return response.data;
-    },
-    'Updating settings...',
-    'Settings updated successfully!',
-    'Failed to update settings'
-  );
+  const user = getStoredUser();
+  if (!user) throw new Error('No user found');
+  const response = await api.put(`/users/${user.id}/settings`, settings);
+  return response.data.data;
 };
 
 // ==================== MOCK DATA FOR DEVELOPMENT ====================

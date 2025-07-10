@@ -26,7 +26,7 @@
     "mongodb",
     "typescript"
   ],
-  "author": "IIB Chat Team",
+  "author": "ITZ",
   "license": "MIT",
   "dependencies": {
     "axios": "^1.7.9",
@@ -64,10 +64,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/iib-chat-application.git"
+    "url": "git+https://github.com/itzzexe/iib-chat.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/iib-chat-application/issues"
+    "url": "https://github.com/itzzexe/iib-chat/issues"
   },
-  "homepage": "https://github.com/your-username/iib-chat-application#readme"
+  "homepage": "https://github.com/itzzexe/iib-chat#readme"
 }

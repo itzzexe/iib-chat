@@ -167,14 +167,33 @@ function appReducer(state: AppState, action: AppAction): AppState {
     }
     case 'REMOVE_MESSAGE': {
       const { chatId, messageId } = action.payload;
+      const updatedMessages = state.messages[chatId]?.map(msg =>
+        msg.id === messageId ? { ...msg, isDeleted: true, content: 'This message was deleted.' } : msg
+      ) || [];
+
+      // Update chat's last message if the deleted message was the last one
+      const chat = state.chats.find(c => c.id === chatId);
+      if (chat?.lastMessage && chat.lastMessage.content === updatedMessages[updatedMessages.length - 1]?.content) {
+        const lastValidMessage = [...updatedMessages].reverse().find(m => !m.isDeleted);
+        const updatedChat = {
+          ...chat,
+          lastMessage: lastValidMessage ? {
+            content: lastValidMessage.content,
+            senderId: lastValidMessage.senderId,
+            senderName: lastValidMessage.senderName,
+            timestamp: lastValidMessage.timestamp
+          } : undefined
+        };
+        return {
+          ...state,
+          messages: { ...state.messages, [chatId]: updatedMessages },
+          chats: state.chats.map(c => c.id === chatId ? updatedChat : c)
+        };
+      }
+
       return {
         ...state,
-        messages: {
-          ...state.messages,
-          [chatId]: state.messages[chatId]?.map(msg =>
-            msg.id === messageId ? { ...msg, isDeleted: true, content: 'This message was deleted.' } : msg
-          ) || []
-        }
+        messages: { ...state.messages, [chatId]: updatedMessages }
       };
     }
     case 'SET_LOADING':
@@ -234,14 +253,32 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_DARK_MODE':
       localStorage.setItem('iib-chat-theme', action.payload ? 'dark' : 'light');
       return { ...state, darkMode: action.payload };
-    case 'SET_USER_SETTINGS':
-      return { 
-        ...state, 
-        userSettings: { 
-          ...state.userSettings, 
-          [action.payload.userId]: action.payload.settings 
-        } 
+    case 'SET_USER_SETTINGS': {
+      const { userId, settings } = action.payload;
+      
+      // Update notifications state if the settings belong to the current user
+      if (userId === state.currentUser?.id) {
+        return {
+          ...state,
+          userSettings: {
+            ...state.userSettings,
+            [userId]: settings
+          },
+          notifications: {
+            ...state.notifications,
+            enabled: settings.notifications || false
+          }
+        };
+      }
+      
+      return {
+        ...state,
+        userSettings: {
+          ...state.userSettings,
+          [userId]: settings
+        }
       };
+    }
     case 'SET_NOTIFICATION_PERMISSION':
       return {
         ...state,

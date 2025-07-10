@@ -62,8 +62,13 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
 
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
+      const textarea = textareaRef.current;
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 120);
+      textarea.style.height = `${newHeight}px`;
+
+      // Ensure smooth transition
+      textarea.style.transition = 'height 0.2s ease';
     }
   }, [messageText]);
 
@@ -187,9 +192,9 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white dark:bg-secondary-900">
+    <div className="flex-1 flex flex-col h-full max-h-full bg-white dark:bg-secondary-900">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+      <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${
             currentChat?.type === 'announcements' 
@@ -233,19 +238,21 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
         </div>
       </div>
 
-      {/* Messages */}
-      <MessageList messages={chatMessages || []} />
+      {/* Messages Container - Fixed Height */}
+      <div className="flex-1 min-h-0 relative">
+        <MessageList messages={chatMessages || []} />
+      </div>
 
-      {/* Typing Indicator */}
+      {/* Typing Indicator - Absolute Position */}
       {typingUsers && activeChat && typingUsers[activeChat]?.length > 0 && (
-        <div className="px-4 py-1 text-sm text-secondary-500 italic">
+        <div className="absolute bottom-0 left-0 right-0 px-4 py-1 bg-white dark:bg-secondary-900 text-sm text-secondary-500 italic">
           {typingUsers[activeChat].join(', ')} {typingUsers[activeChat].length > 1 ? 'are' : 'is'} typing...
         </div>
       )}
 
-      {/* Message Input - disabled in oversight mode */}
+      {/* Message Input - Fixed at Bottom */}
       {!isOversight && (
-        <div className="p-4 border-t border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+        <div className="flex-shrink-0 p-4 border-t border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
           {/* Replying To Indicator */}
           {replyingTo && (
             <div className="mb-2 p-2 bg-secondary-100 dark:bg-secondary-800 rounded-lg text-sm flex justify-between items-center">
@@ -289,6 +296,11 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
                 }
                 rows={1}
                 className="w-full resize-none rounded-lg border border-secondary-300 dark:border-secondary-600 bg-white dark:bg-secondary-800 px-4 py-3 pr-24 text-secondary-900 dark:text-white placeholder-secondary-500 dark:placeholder-secondary-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                style={{
+                  maxHeight: '120px',
+                  minHeight: '44px',
+                  transition: 'height 0.2s ease'
+                }}
               />
               
               <div className="absolute right-2 bottom-2 flex items-center gap-1">

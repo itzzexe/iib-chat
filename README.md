@@ -2,6 +2,9 @@
 
 A modern, full-stack real-time chat application built with React, Node.js, Socket.IO, and MongoDB. Designed for teams and organizations with comprehensive user management, real-time messaging, and administrative features.
 
+## 👨‍💻 Developer
+This project is developed and maintained by **ITZ**. 
+
 ![Chat Application](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![Node.js](https://img.shields.io/badge/Node.js-22.x-green)
@@ -443,7 +446,7 @@ For support and questions:
 ---
 
 <div align="center">
-  <p>Made with ❤️ by the IIB Team</p>
+  <p>Developed with ❤️ by ITZ</p>
   <p>
     <a href="https://github.com/itzzexe/iib-chat">⭐ Star this project</a> |
     <a href="https://github.com/itzzexe/iib-chat/issues">🐛 Report Bug</a> |
