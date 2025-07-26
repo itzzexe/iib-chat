@@ -306,6 +306,131 @@ io.on('connection', (socket) => {
       console.log(`User ${userId} joined their personal room`);
     }
   });
+
+  // Call-related socket events
+  socket.on('call:invite', (data) => {
+    console.log('📞 Call invitation:', data);
+    const { callId, chatId, callType, participants } = data;
+    
+    // Join call room
+    socket.join(`call:${callId}`);
+    
+    // Notify participants
+    participants.forEach(participantId => {
+      socket.to(`user:${participantId}`).emit('call:invite', {
+        callId,
+        chatId,
+        callerId: socket.userId,
+        callerName: socket.userName,
+        callType,
+        participants
+      });
+    });
+  });
+
+  socket.on('call:join', (data) => {
+    console.log('📞 User joining call:', data);
+    const { callId, chatId } = data;
+    
+    // Join call room
+    socket.join(`call:${callId}`);
+    
+    // Notify other participants
+    socket.to(`call:${callId}`).emit('call:participant-joined', {
+      participantId: socket.userId,
+      participantName: socket.userName
+    });
+  });
+
+  socket.on('call:end', (data) => {
+    console.log('📞 Call ended:', data);
+    const { callId } = data;
+    
+    // Notify all participants
+    io.to(`call:${callId}`).emit('call:ended', {
+      callId,
+      endedBy: socket.userId
+    });
+    
+    // Leave call room
+    socket.leave(`call:${callId}`);
+  });
+
+  socket.on('call:offer', (data) => {
+    console.log('📤 Call offer:', data);
+    const { to, offer } = data;
+    
+    // Forward offer to specific user
+    socket.to(`user:${to}`).emit('call:offer', {
+      from: socket.userId,
+      offer
+    });
+  });
+
+  socket.on('call:answer', (data) => {
+    console.log('📤 Call answer:', data);
+    const { to, answer } = data;
+    
+    // Forward answer to specific user
+    socket.to(`user:${to}`).emit('call:answer', {
+      from: socket.userId,
+      answer
+    });
+  });
+
+  socket.on('call:ice-candidate', (data) => {
+    console.log('📤 ICE candidate:', data);
+    const { to, candidate } = data;
+    
+    // Forward ICE candidate to specific user
+    socket.to(`user:${to}`).emit('call:ice-candidate', {
+      from: socket.userId,
+      candidate
+    });
+  });
+
+  socket.on('call:participant-muted', (data) => {
+    console.log('🔇 Participant muted:', data);
+    const { callId, isMuted } = data;
+    
+    // Notify other participants in the call
+    socket.to(`call:${callId}`).emit('call:participant-muted', {
+      participantId: socket.userId,
+      isMuted
+    });
+  });
+
+  socket.on('call:participant-video-off', (data) => {
+    console.log('📹 Participant video off:', data);
+    const { callId, isVideoOff } = data;
+    
+    // Notify other participants in the call
+    socket.to(`call:${callId}`).emit('call:participant-video-off', {
+      participantId: socket.userId,
+      isVideoOff
+    });
+  });
+
+  socket.on('call:screen-share-started', (data) => {
+    console.log('🖥️ Screen share started:', data);
+    const { callId } = data;
+    
+    // Notify other participants in the call
+    socket.to(`call:${callId}`).emit('call:screen-share-started', {
+      participantId: socket.userId,
+      participantName: socket.userName
+    });
+  });
+
+  socket.on('call:screen-share-stopped', (data) => {
+    console.log('🖥️ Screen share stopped:', data);
+    const { callId } = data;
+    
+    // Notify other participants in the call
+    socket.to(`call:${callId}`).emit('call:screen-share-stopped', {
+      participantId: socket.userId
+    });
+  });
   
   socket.on('disconnect', () => {
     console.log(`❌ User disconnected: ${socket.id}`);

@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Smile, MoreVertical, AlertTriangle, X, Users, Trash2 } from 'lucide-react';
+import { Send, Paperclip, Smile, MoreVertical, AlertTriangle, X, Users, Trash2, Phone, Video } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import dataService from '../../services/dataService';
 import MessageList from './MessageList';
 import EmojiPicker from '../UI/EmojiPicker';
 import Modal from '../UI/Modal';
+import CallInvitationModal from '../Call/CallInvitationModal';
+import VideoCallInterface from '../Call/VideoCallInterface';
 
 interface ChatAreaProps {
   isOversight?: boolean;
@@ -38,6 +40,9 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
   const typingTimeoutRef = useRef<number | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [isInCall, setIsInCall] = useState(false);
+  const [incomingCallData, setIncomingCallData] = useState<any>(null);
 
   // Handle typing indicator
   useEffect(() => {
@@ -217,6 +222,25 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Call buttons */}
+          {currentChat && !isOversight && (
+            <>
+              <button
+                onClick={() => setShowCallModal(true)}
+                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
+                title="Start video call"
+              >
+                <Video className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setShowCallModal(true)}
+                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                title="Start voice call"
+              >
+                <Phone className="w-4 h-4" />
+              </button>
+            </>
+          )}
           {canClearChat() && (
             <button
               onClick={() => setShowClearModal(true)}
@@ -415,6 +439,42 @@ export default function ChatArea({ isOversight = false }: ChatAreaProps) {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Call Invitation Modal */}
+      {showCallModal && (
+        <CallInvitationModal
+          isOpen={showCallModal}
+          onClose={() => setShowCallModal(false)}
+          onStartCall={(callType, participants) => {
+            setIsInCall(true);
+            setShowCallModal(false);
+          }}
+          onAnswerCall={() => {
+            setIsInCall(true);
+            setShowCallModal(false);
+          }}
+          onRejectCall={() => {
+            setIncomingCallData(null);
+            setShowCallModal(false);
+          }}
+          isIncomingCall={!!incomingCallData}
+          callData={incomingCallData}
+          availableUsers={safeUsers}
+          selectedChatId={activeChat}
+          selectedParticipants={currentChat?.participants || []}
+        />
+      )}
+
+      {/* Video Call Interface */}
+      {isInCall && currentChat && (
+        <VideoCallInterface
+          chatId={currentChat.id}
+          participants={currentChat.participants}
+          onCallEnd={() => setIsInCall(false)}
+          isIncomingCall={!!incomingCallData}
+          callData={incomingCallData}
+        />
       )}
     </div>
   );

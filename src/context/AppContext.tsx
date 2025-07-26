@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode, useCallback } from 'react';
 import { AppState, User, Chat, Message, PendingUser, UserSettings, FileUpload, SearchResult, BroadcastMessage, AppScreen } from '../types';
 import dataService from '../services/dataService';
+import { webrtcService } from '../services/webrtcService';
 import { toast } from 'react-hot-toast';
 import { playNotificationSound } from '../services/audioService';
 
@@ -98,6 +99,12 @@ interface AppContextValue extends AppState {
   deleteTeam: (teamId: string) => Promise<void>;
   addTeamMember: (teamId: string, userId: string, role: 'member' | 'lead') => Promise<void>;
   removeTeamMember: (teamId: string, userId: string) => Promise<void>;
+
+  // Call Management
+  startCall: (chatId: string, callType: 'audio' | 'video', participants: string[]) => Promise<void>;
+  endCall: () => void;
+  answerCall: (callId: string, chatId: string) => Promise<void>;
+  rejectCall: (callId: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -1485,6 +1492,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Call Management Functions
+  const startCall = async (chatId: string, callType: 'audio' | 'video', participants: string[]) => {
+    try {
+      const socket = dataServiceAPI.getSocket();
+      if (socket) {
+        await webrtcService.initialize(socket);
+        await webrtcService.startCall(chatId, callType, participants);
+        toast.success(`${callType === 'video' ? 'Video' : 'Voice'} call started`);
+      }
+    } catch (error) {
+      console.error('Failed to start call:', error);
+      toast.error('Failed to start call');
+      throw error;
+    }
+  };
+
+  const endCall = () => {
+    webrtcService.endCall();
+    toast.success('Call ended');
+  };
+
+  const answerCall = async (callId: string, chatId: string) => {
+    try {
+      const socket = dataServiceAPI.getSocket();
+      if (socket) {
+        await webrtcService.initialize(socket);
+        await webrtcService.joinCall(callId, chatId);
+        toast.success('Call answered');
+      }
+    } catch (error) {
+      console.error('Failed to answer call:', error);
+      toast.error('Failed to answer call');
+      throw error;
+    }
+  };
+
+  const rejectCall = (callId: string) => {
+    const socket = dataServiceAPI.getSocket();
+    if (socket) {
+      socket.emit('call:reject', { callId });
+      toast.success('Call rejected');
+    }
+  };
+
   const contextValue: AppContextValue = {
     ...state,
     login,
@@ -1543,6 +1594,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     deleteTeam,
     addTeamMember,
     removeTeamMember,
+    startCall,
+    endCall,
+    answerCall,
+    rejectCall,
   };
 
   return (

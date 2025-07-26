@@ -30,6 +30,16 @@ This project is developed and maintained by **ITZ**.
 - **File Upload & Sharing** with preview support
 - **Link Preview** with automatic metadata extraction
 
+### 📞 Video & Voice Calls
+- **High-quality Video Calls** with WebRTC
+- **Crystal Clear Voice Calls** with noise suppression
+- **Screen Sharing** with cursor tracking
+- **Call Recording** with automatic download
+- **Participant Management** with mute/unmute controls
+- **Call Settings** with device selection
+- **Zoom-like Interface** with grid layout
+- **Group Calls** support for multiple participants
+
 ### 👥 User Management
 - **User Profile Management** with avatar upload
 - **Real-time Status Indicators** (Online/Offline/Away/Busy)
@@ -463,6 +473,8 @@ npm run db:reset     # Reset database
 - **Vite** - Build tool and dev server
 - **Tailwind CSS** - Utility-first styling
 - **Socket.IO Client** - Real-time communication
+- **WebRTC** - Video and voice calls
+- **Simple Peer** - WebRTC peer connections
 - **React Router** - Client-side routing
 - **React Hot Toast** - Notifications
 - **Lucide React** - Icon library
@@ -637,7 +649,6 @@ For support and questions:
 ### Upcoming Features
 
 - [ ] **Mobile App** (React Native)
-- [ ] **Video/Voice Calls** integration
 - [ ] **Advanced Search** with filters
 - [ ] **Message Encryption** end-to-end
 - [ ] **Plugin System** for extensions
@@ -646,6 +657,9 @@ For support and questions:
 - [ ] **Time Tracking** integration
 - [ ] **Project Management** features
 - [ ] **Advanced Reporting** tools
+- [ ] **Video Background Effects** and filters
+- [ ] **Call Transcription** and AI summaries
+- [ ] **Advanced Screen Sharing** with annotations
 
 ### Version History
 
@@ -655,6 +669,7 @@ For support and questions:
 - **v1.3.0** - UI/UX improvements and performance optimization
 - **v1.4.0** - Added task management and calendar system
 - **v1.5.0** - Added team management with role-based permissions
+- **v1.6.0** - Added video and voice calls with Zoom-like features
 
 ---
 

@@ -8,7 +8,12 @@
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["chat", "socket.io", "express", "mongodb"],
+  "keywords": [
+    "chat",
+    "socket.io",
+    "express",
+    "mongodb"
+  ],
   "author": "IIB Chat Team",
   "license": "MIT",
   "dependencies": {
