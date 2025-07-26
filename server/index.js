@@ -24,6 +24,7 @@ const statsRoutes = require('./routes/stats');
 const broadcastsRoutes = require('./routes/broadcasts');
 const tasksRoutes = require('./routes/tasks');
 const teamsRoutes = require('./routes/teams');
+const callHistoryRoutes = require('./routes/callHistory');
 
 // Security middleware
 app.use(helmet({
@@ -83,7 +84,7 @@ async function connectToDatabase() {
 }
 
 // Models
-const { User, PendingUser, Chat, Message, UserSettings } = require('./models');
+const { User, PendingUser, Chat, Message, UserSettings, CallHistory } = require('./models');
 
 // Import middleware functions
 const { authenticateToken, requireManager } = require('./middleware/auth');
@@ -116,6 +117,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/broadcasts', broadcastsRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/teams', teamsRoutes);
+app.use('/api/calls', callHistoryRoutes);
 
 // Additional routes that frontend expects
 app.get('/api/pending-users', authenticateToken, requireManager, async (req, res) => {

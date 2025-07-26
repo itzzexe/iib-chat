@@ -18,13 +18,15 @@ import {
   ChevronDown,
   ChevronUp,
   CheckSquare,
-  Calendar
+  Calendar,
+  Phone
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { UserStatus, Chat } from '../../types';
 import UserStatusIndicator from '../UI/UserStatusIndicator';
 import UserAvatar from '../UI/UserAvatar';
 import StartChatModal from '../Chat/StartChatModal';
+import CallHistory from '../Call/CallHistory';
 
 export default function Sidebar() {
   const { 
@@ -49,6 +51,7 @@ export default function Sidebar() {
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const pendingCount = getPendingUsersCount();
   const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const [showCallHistory, setShowCallHistory] = useState(false);
 
   if (!currentUser) return null;
 
@@ -199,6 +202,15 @@ export default function Sidebar() {
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-4 h-4" />
                 <span>Tasks</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setShowCallHistory(true)}
+              className="w-full flex items-center justify-between p-2 rounded-lg transition-colors text-sm hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-600 dark:text-secondary-400"
+            >
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4" />
+                <span>Call History</span>
               </div>
             </button>
           </div>
@@ -457,6 +469,7 @@ export default function Sidebar() {
         isOpen={showStartChatModal} 
         onClose={() => setShowStartChatModal(false)} 
       />
+      <CallHistory isOpen={showCallHistory} onClose={() => setShowCallHistory(false)} />
     </div>
   );
 }

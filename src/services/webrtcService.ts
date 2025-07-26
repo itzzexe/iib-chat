@@ -337,8 +337,13 @@ class WebRTCService {
   }
 
   // End the current call
-  endCall(): void {
+  async endCall(): Promise<void> {
     if (!this.socket) return;
+
+    const callEndTime = new Date();
+    const callDuration = this.callState.callStartTime 
+      ? Math.floor((callEndTime.getTime() - this.callState.callStartTime.getTime()) / 1000)
+      : 0;
 
     // Stop all streams
     this.stopAllStreams();
@@ -346,6 +351,48 @@ class WebRTCService {
     // Clean up peers
     this.peers.forEach(peer => peer.destroy());
     this.peers.clear();
+
+    // Save call record (only if call was active, has real participants, and duration is more than 1 second)
+    const realParticipants = this.callState.participants.filter(p => p.id !== 'local');
+    if (this.callState.callId && this.callState.chatId && this.callState.isCallActive && 
+        realParticipants.length > 0 && callDuration > 1) {
+      try {
+        const { default: dataServiceAPI } = await import('../services/dataService');
+        const currentUser = dataServiceAPI.getStoredUser();
+        
+        if (currentUser) {
+          const callRecord = {
+            callId: this.callState.callId,
+            chatId: this.callState.chatId,
+            chatName: this.getChatName(),
+            participants: realParticipants.map(p => p.id),
+            participantNames: realParticipants.map(p => p.name),
+            callType: this.callState.callType === 'screen' ? 'video' : this.callState.callType,
+            startTime: this.callState.callStartTime || new Date(),
+            endTime: callEndTime,
+            duration: callDuration,
+            status: 'completed' as const,
+            initiatedBy: currentUser.id,
+            initiatedByName: currentUser.name,
+            isIncoming: false,
+            hasRecording: this.callState.isRecording,
+            recordingUrl: this.callState.isRecording ? this.getRecordingUrl() : undefined
+          };
+
+          await dataServiceAPI.saveCallRecord(callRecord);
+          console.log('📝 Call record saved');
+        }
+      } catch (error: any) {
+        // Handle specific error cases
+        if (error.response?.status === 409) {
+          console.log('📝 Call record already exists, skipping save');
+        } else if (error.response?.status === 500) {
+          console.error('❌ Server error saving call record:', error.response?.data);
+        } else {
+          console.error('❌ Failed to save call record:', error);
+        }
+      }
+    }
 
     // Reset call state
     this.callState = {
@@ -800,7 +847,10 @@ class WebRTCService {
 
   // Generate unique call ID
   private generateCallId(): string {
-    return `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 9);
+    const userId = this.socket?.id || 'unknown';
+    return `call_${timestamp}_${random}_${userId}`;
   }
 
   // Set call state change callback
@@ -821,6 +871,20 @@ class WebRTCService {
   // Get call settings
   getCallSettings(): CallSettings {
     return { ...this.callSettings };
+  }
+
+  // Get chat name for call record
+  private getChatName(): string {
+    // This would typically come from the chat context
+    // For now, we'll use a default name
+    return 'Chat';
+  }
+
+  // Get recording URL
+  private getRecordingUrl(): string {
+    // This would be the URL where the recording is stored
+    // For now, we'll return a placeholder
+    return '';
   }
 
   // Cleanup

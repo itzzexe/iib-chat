@@ -1,7 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
-import { User, Chat, Message, PendingUser, UserSettings } from '../types';
+import { User, Chat, Message, PendingUser, UserSettings, CallHistory } from '../types';
 
 // API Configuration - Get the current hostname for external access
 const getCurrentHost = () => {
@@ -868,34 +868,16 @@ export const getAuditLogs = async (page = 1, limit = 20): Promise<any> => {
   return response.data;
 };
 
-export const sendBroadcast = async (message: string): Promise<void> => {
-  await api.post('/broadcasts/send', { message });
+export const createSampleAuditLogs = async (): Promise<void> => {
+  await api.post('/stats/create-sample-logs');
 };
 
-export const deleteChat = async (chatId: string): Promise<void> => {
-  return withToast(
-    async () => {
-      await api.delete(`/chats/${chatId}`);
-    },
-    'Deleting chat...',
-    'Chat deleted successfully!',
-    'Failed to delete chat'
-  );
+export const clearAuditLogs = async (): Promise<void> => {
+  await api.delete('/stats/clear-audit-logs');
 };
 
-export const clearChatMessages = async (chatId: string): Promise<{ deletedCount: number }> => {
-  return withToast(
-    async () => {
-      const response = await api.delete(`/chats/${chatId}/messages`);
-      return response.data;
-    },
-    'Clearing chat messages...',
-    'Chat messages cleared successfully!',
-    'Failed to clear chat messages'
-  );
-};
+// ==================== TASK MANAGEMENT ====================
 
-// Task Management API Functions
 export const getTasks = async (): Promise<any> => {
   const maxRetries = 3;
   let lastError: any;
@@ -982,7 +964,8 @@ export const getCalendarEvents = async (start?: string, end?: string): Promise<a
   }
 };
 
-// Team Management API Functions
+// ==================== TEAM MANAGEMENT ====================
+
 export const getTeams = async (): Promise<any> => {
   const maxRetries = 3;
   let lastError: any;
@@ -1016,8 +999,6 @@ export const getTeam = async (teamId: string): Promise<any> => {
   }
 };
 
-
-
 export const removeTeamMember = async (teamId: string, userId: string): Promise<any> => {
   try {
     const response = await api.delete(`/teams/${teamId}/members/${userId}`);
@@ -1028,7 +1009,6 @@ export const removeTeamMember = async (teamId: string, userId: string): Promise<
   }
 };
 
-// Team Management API Functions with retry logic
 export const createTeam = async (teamData: any): Promise<any> => {
   const maxRetries = 3;
   let lastError: any;
@@ -1113,103 +1093,145 @@ export const addTeamMember = async (teamId: string, userId: string, role: string
   }
 };
 
+// ==================== CALL HISTORY ====================
+
+export const getCallHistory = async (): Promise<CallHistory[]> => {
+  try {
+    const response = await api.get('/calls/history');
+    return response.data.map((call: any) => ({
+      ...call,
+      startTime: new Date(call.startTime),
+      endTime: call.endTime ? new Date(call.endTime) : undefined
+    }));
+  } catch (error) {
+    console.error('Failed to fetch call history:', error);
+    throw error;
+  }
+};
+
+export const saveCallRecord = async (callData: Omit<CallHistory, 'id'>): Promise<CallHistory> => {
+  try {
+    const response = await api.post('/calls/history', callData);
+    return {
+      ...response.data,
+      startTime: new Date(response.data.startTime),
+      endTime: response.data.endTime ? new Date(response.data.endTime) : undefined
+    };
+  } catch (error: any) {
+    // Don't log duplicate key errors as they're expected
+    if (error.response?.status !== 409) {
+      console.error('Failed to save call record:', error);
+    }
+    throw error;
+  }
+};
+
+export const deleteCallRecord = async (callId: string): Promise<void> => {
+  try {
+    await api.delete(`/calls/history/${callId}`);
+  } catch (error) {
+    console.error('Failed to delete call record:', error);
+    throw error;
+  }
+};
+
+// ==================== BROADCAST & CHAT MANAGEMENT ====================
+
+export const sendBroadcast = async (message: string): Promise<void> => {
+  await api.post('/broadcasts/send', { message });
+};
+
+export const deleteChat = async (chatId: string): Promise<void> => {
+  return withToast(
+    async () => {
+      await api.delete(`/chats/${chatId}`);
+    },
+    'Deleting chat...',
+    'Chat deleted successfully!',
+    'Failed to delete chat'
+  );
+};
+
+export const clearChatMessages = async (chatId: string): Promise<{ deletedCount: number }> => {
+  return withToast(
+    async () => {
+      const response = await api.delete(`/chats/${chatId}/messages`);
+      return response.data;
+    },
+    'Clearing chat messages...',
+    'Chat messages cleared successfully!',
+    'Failed to clear chat messages'
+  );
+};
+
+// Export functions for dataService
 export default {
-  // Auth
-  login,
-  register,
-  logout,
-  createAdmin,
-  
-  // Users
-  getCurrentUser,
-  getUsers,
-  updateUser,
-  updateUserRole,
-  deleteUser,
-  
-  // Pending Users
-  getPendingUsers,
-  approveUser,
-  rejectUser,
-  
-  // Chats
-  getChats,
-  getChat,
-  createChat,
-  createDirectChat,
-  createGroupChat,
-  
-  // Messages
-  getMessages,
-  sendMessage,
-  editMessage,
-  deleteMessage,
-  markMessagesAsRead,
-  addReaction,
-  uploadFile,
-  uploadMultipleFiles,
-  deleteFile,
-  sendMessageWithFile,
-  
-  // Settings
-  getUserSettings,
-  updateUserSettings,
-  
-  // Socket
+  // Socket functions
   connectSocket,
   disconnectSocket,
   getSocket,
   joinChat,
   leaveChat,
   emitTyping,
+  emitStartTyping,
+  emitStopTyping,
   
-  // Utilities
-  isUserOnline,
-  formatLastSeen,
-  getChatDisplayName,
-  getChatDisplayAvatar,
-  handleApiError,
-  getStoredUser,
-  getStoredToken,
-  isAuthenticated,
-  healthCheck,
-  initializeDataService,
+  // Auth functions
+  login,
+  register,
+  logout,
+  createAdmin,
+  getCurrentUser,
   
-  // Mock data
-  mockData,
-  
-  // New function
+  // User functions
+  getUsers,
+  updateUser,
+  updateUserRole,
+  deleteUser,
+  getPendingUsers,
+  approveUser,
+  rejectUser,
   uploadAvatar,
+  updateUserProfile,
   
-  // Manager-only functions
+  // Chat functions
+  getChats,
+  getChat,
+  createChat,
+  createDirectChat,
+  createGroupChat,
+  getMessages,
+  sendMessage,
+  editMessage,
+  deleteMessage,
+  markMessagesAsRead,
   getDirectChatsForOversight,
   getMessagesForOversight,
   
-  // New function
+  // File functions
+  uploadFile,
+  uploadMultipleFiles,
+  deleteFile,
+  sendMessageWithFile,
+  
+  // Settings functions
+  getUserSettings,
+  updateUserSettings,
+  
+  // Utility functions
   getLinkMetadata,
-  
-  // New function
+  addReaction,
   searchMessages,
+  healthCheck,
+  initializeDataService,
   
-  // New function
+  // Stats functions
   getDashboardStats,
-  
-  // New function
   getAuditLogs,
+  createSampleAuditLogs,
+  clearAuditLogs,
   
-  // New function
-  sendBroadcast,
-  
-  // New function
-  deleteChat,
-  
-  // New function
-  clearChatMessages,
-  
-  // New function
-  updateUserProfile,
-  
-  // Task Management
+  // Task functions
   getTasks,
   getTask,
   createTask,
@@ -1218,12 +1240,37 @@ export default {
   addTaskComment,
   getCalendarEvents,
   
-  // Team Management
+  // Team functions
   getTeams,
   getTeam,
   createTeam,
   updateTeam,
   deleteTeam,
   addTeamMember,
-  removeTeamMember
+  removeTeamMember,
+  
+  // Call functions
+  getCallHistory,
+  saveCallRecord,
+  deleteCallRecord,
+  
+  // Broadcast functions
+  sendBroadcast,
+  
+  // Chat management functions
+  deleteChat,
+  clearChatMessages,
+  
+  // Helper functions
+  isUserOnline,
+  formatLastSeen,
+  getChatDisplayName,
+  getChatDisplayAvatar,
+  handleApiError,
+  getStoredUser,
+  getStoredToken,
+  isAuthenticated
 };
+
+
+

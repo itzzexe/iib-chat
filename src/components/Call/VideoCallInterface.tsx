@@ -10,7 +10,7 @@ import {
   MonitorOff,
   Settings,
   Users,
-  Record as RecordIcon,
+  Circle,
   Square,
   Volume2,
   VolumeX,
@@ -19,10 +19,12 @@ import {
   MoreVertical,
   MessageSquare,
   Share,
-  Download
+  Download,
+  History
 } from 'lucide-react';
 import { webrtcService, CallState, CallParticipant, CallSettings } from '../../services/webrtcService';
 import toast from 'react-hot-toast';
+import CallHistory from './CallHistory';
 
 interface VideoCallInterfaceProps {
   chatId: string;
@@ -48,6 +50,7 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
   const [participantsList, setParticipantsList] = useState<CallParticipant[]>([]);
   const [showSettings, setShowSettings] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [showCallHistory, setShowCallHistory] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [showChat, setShowChat] = useState(false);
@@ -66,7 +69,10 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
   useEffect(() => {
     const initializeCall = async () => {
       try {
-        const socket = (window as any).socket; // Get socket from global context
+        // Import dataServiceAPI to get the socket properly
+        const { default: dataServiceAPI } = await import('../../services/dataService');
+        const socket = dataServiceAPI.getSocket();
+        
         if (socket) {
           await webrtcService.initialize(socket);
           
@@ -87,6 +93,8 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
             // Start new call
             await startNewCall();
           }
+        } else {
+          throw new Error('Socket not available');
         }
       } catch (error) {
         console.error('Failed to initialize call:', error);
@@ -265,44 +273,44 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
           className="w-full h-full object-cover"
         />
         
-        {/* Video off overlay */}
-        {!hasVideo && (
-          <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-2">
-                <span className="text-white text-xl font-semibold">
-                  {participant.name.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <p className="text-white text-sm">{participant.name}</p>
-            </div>
-          </div>
-        )}
+                 {/* Video off overlay */}
+         {!hasVideo && (
+           <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
+             <div className="text-center">
+               <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-1">
+                 <span className="text-white text-sm font-semibold">
+                   {participant.name.charAt(0).toUpperCase()}
+                 </span>
+               </div>
+               <p className="text-white text-xs">{participant.name}</p>
+             </div>
+           </div>
+         )}
 
-        {/* Participant info overlay */}
-        <div className="absolute bottom-2 left-2 right-2">
-          <div className="flex items-center justify-between bg-black bg-opacity-50 rounded-lg px-2 py-1">
-            <span className="text-white text-xs truncate">
-              {participant.name} {isLocal ? '(You)' : ''}
-            </span>
-            <div className="flex items-center space-x-1">
-              {participant.isMuted && (
-                <MicOff className="w-3 h-3 text-red-400" />
-              )}
-              {participant.isVideoOff && (
-                <VideoOff className="w-3 h-3 text-red-400" />
-              )}
-              {participant.isScreenSharing && (
-                <Monitor className="w-3 h-3 text-green-400" />
-              )}
-            </div>
-          </div>
-        </div>
+                 {/* Participant info overlay */}
+         <div className="absolute bottom-1 left-1 right-1">
+           <div className="flex items-center justify-between bg-black bg-opacity-50 rounded px-1 py-0.5">
+             <span className="text-white text-xs truncate">
+               {participant.name} {isLocal ? '(You)' : ''}
+             </span>
+             <div className="flex items-center space-x-1">
+               {participant.isMuted && (
+                 <MicOff className="w-2 h-2 text-red-400" />
+               )}
+               {participant.isVideoOff && (
+                 <VideoOff className="w-2 h-2 text-red-400" />
+               )}
+               {participant.isScreenSharing && (
+                 <Monitor className="w-2 h-2 text-green-400" />
+               )}
+             </div>
+           </div>
+         </div>
 
-        {/* Speaking indicator */}
-        {participant.isSpeaking && (
-          <div className="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full animate-pulse" />
-        )}
+                 {/* Speaking indicator */}
+         {participant.isSpeaking && (
+           <div className="absolute top-1 right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+         )}
       </div>
     );
   };
@@ -310,9 +318,9 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
   if (!isInitialized) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p>Initializing call...</p>
+        <div className="bg-white rounded-lg p-3 text-center max-w-xs">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mx-auto mb-2"></div>
+          <p className="text-xs">Initializing call...</p>
         </div>
       </div>
     );
@@ -321,186 +329,194 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-black z-50 flex flex-col"
+      className="fixed top-8 right-8 bottom-8 left-8 bg-black z-50 flex flex-col rounded-lg shadow-2xl max-w-4xl max-h-4xl mx-auto"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-black bg-opacity-50">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-            <span className="text-white font-medium">Live Call</span>
-          </div>
-          <span className="text-white text-sm">{formatDuration(callDuration)}</span>
-          <span className="text-white text-sm">
-            {participantsList.length} participant{participantsList.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowParticipants(!showParticipants)}
-            className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-          >
-            <Users className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setShowChat(!showChat)}
-            className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-          >
-            <MessageSquare className="w-5 h-5" />
-          </button>
-          <button
-            onClick={handleToggleFullscreen}
-            className="p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-          >
-            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
+             {/* Header */}
+       <div className="flex items-center justify-between p-2 bg-black bg-opacity-50">
+         <div className="flex items-center space-x-2">
+           <div className="flex items-center space-x-1">
+             <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+             <span className="text-white font-medium text-xs">Live Call</span>
+           </div>
+           <span className="text-white text-xs">{formatDuration(callDuration)}</span>
+           <span className="text-white text-xs">
+             {participantsList.length} participant{participantsList.length !== 1 ? 's' : ''}
+           </span>
+         </div>
+         
+         <div className="flex items-center space-x-1">
+           <button
+             onClick={() => setShowParticipants(!showParticipants)}
+             className="p-1 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+           >
+             <Users className="w-3 h-3" />
+           </button>
+           <button
+             onClick={() => setShowChat(!showChat)}
+             className="p-1 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+           >
+             <MessageSquare className="w-3 h-3" />
+           </button>
+           <button
+             onClick={handleToggleFullscreen}
+             className="p-1 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
+           >
+             {isFullscreen ? <Minimize className="w-3 h-3" /> : <Maximize className="w-3 h-3" />}
+           </button>
+         </div>
+       </div>
 
-      {/* Main content */}
-      <div className="flex-1 flex">
-        {/* Video grid */}
-        <div className="flex-1 p-4">
-          <div className={`grid ${getGridLayout()} gap-4 h-full`}>
+             {/* Main content */}
+       <div className="flex-1 flex">
+         {/* Video grid */}
+         <div className="flex-1 p-2">
+           <div className={`grid ${getGridLayout()} gap-2 h-full`}>
             {participantsList.map(renderParticipantVideo)}
           </div>
         </div>
 
-        {/* Sidebar */}
-        {(showParticipants || showChat) && (
-          <div className="w-80 bg-gray-900 border-l border-gray-700">
-            {showParticipants && (
-              <div className="p-4">
-                <h3 className="text-white font-medium mb-4">Participants</h3>
-                <div className="space-y-2">
+                 {/* Sidebar */}
+         {(showParticipants || showChat) && (
+           <div className="w-48 bg-gray-900 border-l border-gray-700">
+                         {showParticipants && (
+               <div className="p-3">
+                 <h3 className="text-white font-medium mb-3 text-sm">Participants</h3>
+                 <div className="space-y-1">
                   {participantsList.map(participant => (
-                    <div
-                      key={participant.id}
-                      className="flex items-center justify-between p-2 bg-gray-800 rounded-lg"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-                          <span className="text-white text-sm">
-                            {participant.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <span className="text-white text-sm">
-                          {participant.name} {participant.id === 'local' ? '(You)' : ''}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        {participant.isMuted && <MicOff className="w-4 h-4 text-red-400" />}
-                        {participant.isVideoOff && <VideoOff className="w-4 h-4 text-red-400" />}
-                        {participant.isScreenSharing && <Monitor className="w-4 h-4 text-green-400" />}
-                      </div>
+                                         <div
+                       key={participant.id}
+                       className="flex items-center justify-between p-1.5 bg-gray-800 rounded"
+                     >
+                                             <div className="flex items-center space-x-2">
+                         <div className="w-5 h-5 bg-gray-600 rounded-full flex items-center justify-center">
+                           <span className="text-white text-xs">
+                             {participant.name.charAt(0).toUpperCase()}
+                           </span>
+                         </div>
+                         <span className="text-white text-xs">
+                           {participant.name} {participant.id === 'local' ? '(You)' : ''}
+                         </span>
+                       </div>
+                       <div className="flex items-center space-x-1">
+                         {participant.isMuted && <MicOff className="w-2 h-2 text-red-400" />}
+                         {participant.isVideoOff && <VideoOff className="w-2 h-2 text-red-400" />}
+                         {participant.isScreenSharing && <Monitor className="w-2 h-2 text-green-400" />}
+                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
             
-            {showChat && (
-              <div className="p-4">
-                <h3 className="text-white font-medium mb-4">Chat</h3>
-                <div className="bg-gray-800 rounded-lg p-3 h-64 overflow-y-auto">
-                  <p className="text-gray-400 text-sm">Chat feature coming soon...</p>
-                </div>
-              </div>
-            )}
+                         {showChat && (
+               <div className="p-3">
+                 <h3 className="text-white font-medium mb-3 text-sm">Chat</h3>
+                 <div className="bg-gray-800 rounded p-2 h-48 overflow-y-auto">
+                   <p className="text-gray-400 text-xs">Chat feature coming soon...</p>
+                 </div>
+               </div>
+             )}
           </div>
         )}
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-center p-6 bg-black bg-opacity-50">
-        <div className="flex items-center space-x-4">
-          {/* Mute/Unmute */}
-          <button
-            onClick={handleToggleMute}
-            className={`p-4 rounded-full transition-colors ${
-              callState.isMuted
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-          >
-            {callState.isMuted ? (
-              <MicOff className="w-6 h-6 text-white" />
-            ) : (
-              <Mic className="w-6 h-6 text-white" />
-            )}
-          </button>
+             {/* Controls */}
+       <div className="flex items-center justify-center p-3 bg-black bg-opacity-50">
+         <div className="flex items-center space-x-2">
+           {/* Mute/Unmute */}
+           <button
+             onClick={handleToggleMute}
+             className={`p-2 rounded-full transition-colors ${
+               callState.isMuted
+                 ? 'bg-red-500 hover:bg-red-600'
+                 : 'bg-gray-700 hover:bg-gray-600'
+             }`}
+           >
+             {callState.isMuted ? (
+               <MicOff className="w-4 h-4 text-white" />
+             ) : (
+               <Mic className="w-4 h-4 text-white" />
+             )}
+           </button>
 
-          {/* Video On/Off */}
-          <button
-            onClick={handleToggleVideo}
-            className={`p-4 rounded-full transition-colors ${
-              callState.isVideoOff
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-          >
-            {callState.isVideoOff ? (
-              <VideoOff className="w-6 h-6 text-white" />
-            ) : (
-              <Video className="w-6 h-6 text-white" />
-            )}
-          </button>
+           {/* Video On/Off */}
+           <button
+             onClick={handleToggleVideo}
+             className={`p-2 rounded-full transition-colors ${
+               callState.isVideoOff
+                 ? 'bg-red-500 hover:bg-red-600'
+                 : 'bg-gray-700 hover:bg-gray-600'
+             }`}
+           >
+             {callState.isVideoOff ? (
+               <VideoOff className="w-4 h-4 text-white" />
+             ) : (
+               <Video className="w-4 h-4 text-white" />
+             )}
+           </button>
 
-          {/* Screen Share */}
-          <button
-            onClick={handleToggleScreenShare}
-            className={`p-4 rounded-full transition-colors ${
-              callState.isScreenSharing
-                ? 'bg-green-500 hover:bg-green-600'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-          >
-            {callState.isScreenSharing ? (
-              <MonitorOff className="w-6 h-6 text-white" />
-            ) : (
-              <Monitor className="w-6 h-6 text-white" />
-            )}
-          </button>
+           {/* Screen Share */}
+           <button
+             onClick={handleToggleScreenShare}
+             className={`p-2 rounded-full transition-colors ${
+               callState.isScreenSharing
+                 ? 'bg-green-500 hover:bg-green-600'
+                 : 'bg-gray-700 hover:bg-gray-600'
+             }`}
+           >
+             {callState.isScreenSharing ? (
+               <MonitorOff className="w-4 h-4 text-white" />
+             ) : (
+               <Monitor className="w-4 h-4 text-white" />
+             )}
+           </button>
 
-          {/* Recording */}
-          <button
-            onClick={handleToggleRecording}
-            className={`p-4 rounded-full transition-colors ${
-              callState.isRecording
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
-          >
-                          {callState.isRecording ? (
-                <Square className="w-6 h-6 text-white" />
-              ) : (
-                <RecordIcon className="w-6 h-6 text-white" />
-              )}
-          </button>
+           {/* Recording */}
+           <button
+             onClick={handleToggleRecording}
+             className={`p-2 rounded-full transition-colors ${
+               callState.isRecording
+                 ? 'bg-red-500 hover:bg-red-600'
+                 : 'bg-gray-700 hover:bg-gray-600'
+             }`}
+           >
+             {callState.isRecording ? (
+               <Square className="w-4 h-4 text-white" />
+             ) : (
+               <Circle className="w-4 h-4 text-white" />
+             )}
+           </button>
 
-          {/* Settings */}
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-4 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors"
-          >
-            <Settings className="w-6 h-6 text-white" />
-          </button>
+           {/* Settings */}
+           <button
+             onClick={() => setShowSettings(!showSettings)}
+             className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors"
+           >
+             <Settings className="w-4 h-4 text-white" />
+           </button>
 
-          {/* End Call */}
-          <button
-            onClick={handleEndCall}
-            className="p-4 bg-red-500 hover:bg-red-600 rounded-full transition-colors"
-          >
-            <PhoneOff className="w-6 h-6 text-white" />
-          </button>
-        </div>
-      </div>
+           {/* Call History */}
+           <button
+             onClick={() => setShowCallHistory(!showCallHistory)}
+             className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors"
+           >
+             <History className="w-4 h-4 text-white" />
+           </button>
 
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-h-96 overflow-y-auto">
+           {/* End Call */}
+           <button
+             onClick={handleEndCall}
+             className="p-2 bg-red-500 hover:bg-red-600 rounded-full transition-colors"
+           >
+             <PhoneOff className="w-4 h-4 text-white" />
+           </button>
+         </div>
+       </div>
+
+             {/* Settings Modal */}
+       {showSettings && (
+         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+           <div className="bg-white rounded-lg p-3 w-72 max-h-72 overflow-y-auto">
             <h3 className="text-lg font-medium mb-4">Call Settings</h3>
             
             <div className="space-y-4">
@@ -599,6 +615,14 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Call History Modal */}
+      {showCallHistory && (
+        <CallHistory
+          isOpen={showCallHistory}
+          onClose={() => setShowCallHistory(false)}
+        />
       )}
     </div>
   );

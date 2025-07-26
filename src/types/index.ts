@@ -232,3 +232,22 @@ export interface CalendarEvent {
     description?: string;
   };
 }
+
+export interface CallHistory {
+  id: string;
+  callId: string;
+  chatId: string;
+  chatName: string;
+  participants: string[];
+  participantNames: string[];
+  callType: 'audio' | 'video';
+  startTime: Date;
+  endTime?: Date;
+  duration: number; // in seconds
+  status: 'completed' | 'missed' | 'rejected' | 'ongoing';
+  initiatedBy: string;
+  initiatedByName: string;
+  isIncoming: boolean;
+  hasRecording?: boolean;
+  recordingUrl?: string;
+}

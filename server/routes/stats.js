@@ -1,6 +1,7 @@
 const express = require('express');
 const { User, Chat, Message, AuditLog } = require('../models');
 const { authenticateToken, requireManager } = require('../middleware/auth');
+const { createSampleAuditLogs } = require('../services/auditLogService');
 const router = express.Router();
 
 // Get dashboard stats (managers only)
@@ -72,16 +73,44 @@ router.get('/audit-logs', authenticateToken, requireManager, async (req, res) =>
 
     res.json({
       success: true,
-      data: logs,
+      logs: logs,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
+        totalCount: total,
         totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
     console.error('Get audit logs error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Create sample audit logs (for testing - managers only)
+router.post('/create-sample-logs', authenticateToken, requireManager, async (req, res) => {
+  try {
+    await createSampleAuditLogs(req.user.userId);
+    res.json({
+      success: true,
+      message: 'Sample audit logs created successfully'
+    });
+  } catch (error) {
+    console.error('Create sample logs error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Clear all audit logs (for testing - managers only)
+router.delete('/clear-audit-logs', authenticateToken, requireManager, async (req, res) => {
+  try {
+    await AuditLog.deleteMany({});
+    res.json({
+      success: true,
+      message: 'All audit logs cleared successfully'
+    });
+  } catch (error) {
+    console.error('Clear audit logs error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });

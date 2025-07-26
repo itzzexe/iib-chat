@@ -6,6 +6,7 @@ const UserSettings = require('./UserSettings');
 const AuditLog = require('./AuditLog');
 const Task = require('./Task');
 const Team = require('./Team');
+const CallHistory = require('./callHistory');
 
 module.exports = {
   User,
@@ -15,5 +16,6 @@ module.exports = {
   UserSettings,
   AuditLog,
   Task,
-  Team
+  Team,
+  CallHistory
 }; 
