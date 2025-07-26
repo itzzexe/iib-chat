@@ -6,5 +6,14 @@ export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
+    include: [
+      'simple-peer',
+      'webrtc-adapter',
+      'react-big-calendar'
+    ],
+  },
+  server: {
+    port: 5173,
+    host: true,
   },
 });

@@ -10,7 +10,7 @@ import {
   MonitorOff,
   Settings,
   Users,
-  Record,
+  Record as RecordIcon,
   Square,
   Volume2,
   VolumeX,
@@ -472,11 +472,11 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({
                 : 'bg-gray-700 hover:bg-gray-600'
             }`}
           >
-            {callState.isRecording ? (
-              <Square className="w-6 h-6 text-white" />
-            ) : (
-              <Record className="w-6 h-6 text-white" />
-            )}
+                          {callState.isRecording ? (
+                <Square className="w-6 h-6 text-white" />
+              ) : (
+                <RecordIcon className="w-6 h-6 text-white" />
+              )}
           </button>
 
           {/* Settings */}
