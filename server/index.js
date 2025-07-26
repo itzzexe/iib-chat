@@ -22,6 +22,8 @@ const utilsRoutes = require('./routes/utils');
 const searchRoutes = require('./routes/search');
 const statsRoutes = require('./routes/stats');
 const broadcastsRoutes = require('./routes/broadcasts');
+const tasksRoutes = require('./routes/tasks');
+const teamsRoutes = require('./routes/teams');
 
 // Security middleware
 app.use(helmet({
@@ -32,19 +34,8 @@ app.use(helmet({
 // CORS setup
 const corsOptions = {
   origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:5173', 
-      'http://localhost:5174', 
-      'http://localhost:3000',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174'
-    ];
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(null, true); // Allow all origins in development
-    }
+    // Allow all origins in development for external access
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -62,7 +53,9 @@ const limiter = rateLimit({
 
 // Socket.io setup
 const io = socketIo(server, {
-  cors: corsOptions
+  cors: corsOptions,
+  allowEIO3: true,
+  transports: ['websocket', 'polling']
 });
 
 // Middleware
@@ -121,6 +114,8 @@ app.use('/api/utils', utilsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/broadcasts', broadcastsRoutes);
+app.use('/api/tasks', tasksRoutes);
+app.use('/api/teams', teamsRoutes);
 
 // Additional routes that frontend expects
 app.get('/api/pending-users', authenticateToken, requireManager, async (req, res) => {
@@ -277,8 +272,8 @@ io.on('connection', (socket) => {
   
   socket.on('join-user', (userId) => {
     if (userId) {
-      socket.join(userId);
-      console.log(`User ${userId} joined their personal room`);
+      socket.join(`user:${userId}`);
+      console.log(`👤 User ${userId} joined their personal room: user:${userId}`);
     }
   });
   
@@ -302,6 +297,14 @@ io.on('connection', (socket) => {
   
   socket.on('stop-typing', ({ chatId, userName }) => {
     socket.to(chatId).emit('user-stop-typing', { chatId, userName });
+  });
+  
+  // Task-related socket events
+  socket.on('join-user-room', (userId) => {
+    if (userId) {
+      socket.join(`user:${userId}`);
+      console.log(`User ${userId} joined their personal room`);
+    }
   });
   
   socket.on('disconnect', () => {
@@ -395,10 +398,12 @@ async function startServer() {
   await connectToDatabase();
   await initializeApp();
   
-  server.listen(PORT, () => {
+  const HOST = process.env.HOST || '0.0.0.0';
+  server.listen(PORT, HOST, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📱 Frontend should connect to: http://localhost:${PORT}`);
     console.log(`🌐 Backend API available at: http://localhost:${PORT}/api`);
+    console.log(`🌍 External access: http://${HOST}:${PORT}/api`);
   });
 }
 

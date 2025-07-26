@@ -95,8 +95,23 @@ export default function AdminDashboardPage() {
   if (!stats) return <div className="p-8 text-center">Could not load dashboard data.</div>;
 
   return (
-    <div className="p-8 space-y-8">
-      <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+    <div className="flex-1 flex flex-col bg-white dark:bg-secondary-900 h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-secondary-200 dark:border-secondary-700">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+            <Briefcase className="w-6 h-6 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-secondary-900 dark:text-white">Admin Dashboard</h1>
+            <p className="text-sm text-secondary-600 dark:text-secondary-400">System overview and management</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Dashboard Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="w-full max-w-6xl mx-auto space-y-6">
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Users" value={stats.totalUsers} icon={<Users className="w-6 h-6 text-primary-600" />} />
@@ -131,6 +146,8 @@ export default function AdminDashboardPage() {
             </li>
           ))}
         </ul>
+      </div>
+        </div>
       </div>
     </div>
   );

@@ -48,6 +48,7 @@ interface AppContextValue extends AppState {
   
   // Direct chat management
   createDirectChat: (otherUserId: string) => Promise<void>;
+  createGroupChat: (name: string, participants: string[]) => Promise<void>;
   
   // Modal management
   isModalOpen: boolean;
@@ -82,6 +83,21 @@ interface AppContextValue extends AppState {
   // New functionality
   deleteChat: (chatId: string) => Promise<void>;
   clearChatMessages: (chatId: string) => Promise<{ deletedCount: number } | undefined>;
+
+  // Task Management
+  fetchTasks: () => Promise<void>;
+  fetchTeams: () => Promise<void>;
+  createTask: (taskData: any) => Promise<void>;
+  updateTask: (taskId: string, taskData: any) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+  addTaskComment: (taskId: string, content: string) => Promise<void>;
+  
+  // Team Management
+  createTeam: (teamData: any) => Promise<void>;
+  updateTeam: (teamId: string, teamData: any) => Promise<void>;
+  deleteTeam: (teamId: string) => Promise<void>;
+  addTeamMember: (teamId: string, userId: string, role: 'member' | 'lead') => Promise<void>;
+  removeTeamMember: (teamId: string, userId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -142,6 +158,10 @@ const initialState: AppState = {
   overseenMessages: {},
   activeOversightChat: null,
   typingUsers: {},
+  tasks: [],
+  teams: [],
+  activeTask: null,
+  calendarEvents: []
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -239,7 +259,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case 'SET_PENDING_USERS':
       return { ...state, pendingUsers: action.payload };
     case 'UPDATE_USER':
-      return { ...state, currentUser: action.payload };
+      return { 
+        ...state, 
+        users: state.users.map(user => user.id === action.payload.id ? action.payload : user),
+        // Also update currentUser if it's the same user
+        currentUser: state.currentUser?.id === action.payload.id ? action.payload : state.currentUser
+      };
     case 'SET_OVERSEEN_CHATS':
       return { ...state, overseenChats: action.payload };
     case 'SET_OVERSEEN_MESSAGES':
@@ -437,6 +462,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
         dispatch({ type: 'SET_CHATS', payload: updatedChats });
       };
 
+      // Task event handlers
+      const taskCreatedHandler = ({ task, createdBy }: { task: any; createdBy: string }) => {
+        console.log('📋 Handling task created:', { task, createdBy });
+        console.log('Current user:', state.currentUser);
+        console.log('Current tasks:', state.tasks.length);
+        
+        // Only add if not already in the list and if it's assigned to current user or user is manager
+        const isAssignedToCurrentUser = task.assignedTo?.id === state.currentUser?.id;
+        const isManager = state.currentUser?.role === 'manager';
+        const isCreator = createdBy === state.currentUser?.id;
+        
+        console.log('Task visibility check:', {
+          isAssignedToCurrentUser,
+          isManager,
+          isCreator,
+          taskAssignedTo: task.assignedTo?.id,
+          currentUserId: state.currentUser?.id
+        });
+        
+        if (isAssignedToCurrentUser || isManager || isCreator) {
+          const existingTask = state.tasks.find(t => t.id === task.id);
+          if (!existingTask) {
+            console.log('Adding new task to state');
+            dispatch({ type: 'SET_STATE', payload: { tasks: [...state.tasks, task] } });
+          } else {
+            console.log('Task already exists in state');
+          }
+        } else {
+          console.log('Task not visible to current user');
+        }
+      };
+
+      const taskUpdatedHandler = ({ task, updatedBy }: { task: any; updatedBy: string }) => {
+        console.log('📝 Handling task updated:', { task, updatedBy });
+        const updatedTasks = state.tasks.map(t => t.id === task.id ? task : t);
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      };
+
+      const taskDeletedHandler = ({ taskId, deletedBy }: { taskId: string; deletedBy: string }) => {
+        console.log('🗑️ Handling task deleted:', { taskId, deletedBy });
+        const updatedTasks = state.tasks.filter(t => t.id !== taskId);
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      };
+
+      const taskAssignedHandler = ({ task, assignedBy }: { task: any; assignedBy: string }) => {
+        console.log('👤 Handling task assigned:', { task, assignedBy });
+        console.log('Current user:', state.currentUser);
+        
+        // Show notification for assigned task
+        if (task.assignedTo?.id === state.currentUser?.id && assignedBy !== state.currentUser?.id) {
+          console.log('Showing task assignment notification');
+          toast.info(`You have been assigned a new task: ${task.title}`);
+        } else {
+          console.log('Task assignment notification not shown:', {
+            taskAssignedTo: task.assignedTo?.id,
+            currentUserId: state.currentUser?.id,
+            assignedBy,
+            isDifferentUser: assignedBy !== state.currentUser?.id
+          });
+        }
+      };
+
       // Remove existing listeners first
       socket.off('receive-message');
       socket.off('messageUpdated');
@@ -447,6 +534,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       socket.off('global-broadcast');
       socket.off('chat-deleted');
       socket.off('chat-cleared');
+      socket.off('task:created');
+      socket.off('task:updated');
+      socket.off('task:deleted');
+      socket.off('task:assigned');
 
       // Add new listeners
       socket.on('receive-message', messageHandler);
@@ -458,6 +549,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       socket.on('global-broadcast', broadcastHandler);
       socket.on('chat-deleted', chatDeletedHandler);
       socket.on('chat-cleared', chatClearedHandler);
+      
+      // Task event listeners
+      console.log('📡 Setting up task event listeners');
+      socket.on('task:created', taskCreatedHandler);
+      socket.on('task:updated', taskUpdatedHandler);
+      socket.on('task:deleted', taskDeletedHandler);
+      socket.on('task:assigned', taskAssignedHandler);
 
       return () => {
         socket.off('receive-message', messageHandler);
@@ -469,6 +567,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         socket.off('global-broadcast', broadcastHandler);
         socket.off('chat-deleted', chatDeletedHandler);
         socket.off('chat-cleared', chatClearedHandler);
+        socket.off('task:created', taskCreatedHandler);
+        socket.off('task:updated', taskUpdatedHandler);
+        socket.off('task:deleted', taskDeletedHandler);
+        socket.off('task:assigned', taskAssignedHandler);
       };
     }
   }, [state.currentUser, state.typingUsers]);
@@ -500,17 +602,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
               
               // Token is valid, proceed to load data
               try {
-                const [users, chats] = await Promise.all([
+                const [users, chats, tasks, teams] = await Promise.all([
                   dataServiceAPI.getUsers(),
-                  dataServiceAPI.getChats()
+                  dataServiceAPI.getChats(),
+                  dataServiceAPI.getTasks(),
+                  dataServiceAPI.getTeams()
                 ]);
                 
                 // Ensure arrays are always returned
                 const safeUsers = Array.isArray(users) ? users : [];
                 const safeChats = Array.isArray(chats) ? chats : [];
+                const safeTasks = Array.isArray(tasks?.data) ? tasks.data : [];
+                const safeTeams = Array.isArray(teams?.data) ? teams.data : [];
                 
                 dispatch({ type: 'SET_USERS', payload: safeUsers });
                 dispatch({ type: 'SET_CHATS', payload: safeChats });
+                dispatch({ type: 'SET_STATE', payload: { tasks: safeTasks, teams: safeTeams } });
                 
                 // Add default messages for default chats
                 const defaultMessages: { [chatId: string]: Message[] } = {};
@@ -626,17 +733,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       
       // Load additional data after successful login
       try {
-        const [users, chats] = await Promise.all([
+        const [users, chats, tasks, teams] = await Promise.all([
           dataServiceAPI.getUsers(),
-          dataServiceAPI.getChats()
+          dataServiceAPI.getChats(),
+          dataServiceAPI.getTasks(),
+          dataServiceAPI.getTeams()
         ]);
         
         // Ensure arrays are always returned
         const safeUsers = Array.isArray(users) ? users : [];
         const safeChats = Array.isArray(chats) ? chats : [];
+        const safeTasks = Array.isArray(tasks?.data) ? tasks.data : [];
+        const safeTeams = Array.isArray(teams?.data) ? teams.data : [];
         
         dispatch({ type: 'SET_USERS', payload: safeUsers });
         dispatch({ type: 'SET_CHATS', payload: safeChats });
+        dispatch({ type: 'SET_STATE', payload: { tasks: safeTasks, teams: safeTeams } });
         
         // Select the first chat automatically
         if (safeChats.length > 0) {
@@ -705,6 +817,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       dispatch({ type: 'SET_USERS', payload: [] });
       dispatch({ type: 'SET_CHATS', payload: [] });
       dispatch({ type: 'SET_MESSAGES', payload: {} });
+      dispatch({ type: 'SET_STATE', payload: { tasks: [], teams: [] } });
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -1029,10 +1142,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const user = state.users.find(u => u.id === userId);
       if (user && user.email !== 'admin@app.com') { // Prevent changing admin role
         const updatedUser = await dataServiceAPI.updateUserRole(userId, newRole);
+        console.log('Role updated successfully:', updatedUser);
         dispatch({ type: 'UPDATE_USER', payload: updatedUser });
       }
     } catch (error) {
       console.error('Failed to update user role:', error);
+      throw error; // Re-throw to handle in component
     }
   };
 
@@ -1081,6 +1196,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       
     } catch (error) {
       console.error('Failed to create direct chat:', error);
+    }
+  };
+
+  const createGroupChat = async (name: string, participants: string[]) => {
+    if (!state.currentUser) return;
+    
+    try {
+      // Use the API to create group chat
+      const newChat = await dataServiceAPI.createGroupChat(name, participants);
+      
+      // Refresh chats
+      const updatedChats = await dataServiceAPI.getChats();
+      dispatch({ type: 'SET_CHATS', payload: updatedChats });
+      
+      // Activate the new chat
+      setActiveChat(newChat.id);
+      
+    } catch (error) {
+      console.error('Failed to create group chat:', error);
+      throw error;
     }
   };
 
@@ -1184,6 +1319,172 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Task Management Functions
+  const fetchTasks = async () => {
+    try {
+      const response = await dataServiceAPI.getTasks();
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { tasks: response.data } });
+      }
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error);
+      // Set empty array to prevent infinite retries
+      dispatch({ type: 'SET_STATE', payload: { tasks: [] } });
+    }
+  };
+
+  const fetchTeams = async () => {
+    try {
+      const response = await dataServiceAPI.getTeams();
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { teams: response.data } });
+      }
+    } catch (error) {
+      console.error('Failed to fetch teams:', error);
+      // Set empty array to prevent infinite retries
+      dispatch({ type: 'SET_STATE', payload: { teams: [] } });
+    }
+  };
+
+  const createTask = async (taskData: any) => {
+    try {
+      const response = await dataServiceAPI.createTask(taskData);
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { tasks: [...state.tasks, response.data] } });
+        toast.success('Task created successfully');
+      }
+    } catch (error) {
+      console.error('Failed to create task:', error);
+      toast.error('Failed to create task');
+      throw error;
+    }
+  };
+
+  const updateTask = async (taskId: string, taskData: any) => {
+    try {
+      const response = await dataServiceAPI.updateTask(taskId, taskData);
+      if (response.success) {
+        const updatedTasks = state.tasks.map(task => 
+          task.id === taskId ? response.data : task
+        );
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+        toast.success('Task updated successfully');
+      }
+    } catch (error) {
+      console.error('Failed to update task:', error);
+      toast.error('Failed to update task');
+      throw error;
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    try {
+      await dataServiceAPI.deleteTask(taskId);
+      const updatedTasks = state.tasks.filter(task => task.id !== taskId);
+      dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      toast.success('Task deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      toast.error('Failed to delete task');
+      throw error;
+    }
+  };
+
+  const addTaskComment = async (taskId: string, content: string) => {
+    try {
+      const response = await dataServiceAPI.addTaskComment(taskId, content);
+      if (response.success) {
+        const updatedTasks = state.tasks.map(task => 
+          task.id === taskId ? response.data : task
+        );
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      }
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      toast.error('Failed to add comment');
+      throw error;
+    }
+  };
+
+  // Team Management Functions
+  const createTeam = async (teamData: any) => {
+    try {
+      const response = await dataServiceAPI.createTeam(teamData);
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { teams: [...state.teams, response.data] } });
+        toast.success('Team created successfully');
+      }
+    } catch (error) {
+      console.error('Failed to create team:', error);
+      toast.error('Failed to create team');
+      throw error;
+    }
+  };
+
+  const updateTeam = async (teamId: string, teamData: any) => {
+    try {
+      const response = await dataServiceAPI.updateTeam(teamId, teamData);
+      if (response.success) {
+        const updatedTeams = state.teams.map(team => 
+          team.id === teamId ? response.data : team
+        );
+        dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+        toast.success('Team updated successfully');
+      }
+    } catch (error) {
+      console.error('Failed to update team:', error);
+      toast.error('Failed to update team');
+      throw error;
+    }
+  };
+
+  const deleteTeam = async (teamId: string) => {
+    try {
+      await dataServiceAPI.deleteTeam(teamId);
+      const updatedTeams = state.teams.filter(team => team.id !== teamId);
+      dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+      toast.success('Team deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete team:', error);
+      toast.error('Failed to delete team');
+      throw error;
+    }
+  };
+
+  const addTeamMember = async (teamId: string, userId: string, role: 'member' | 'lead') => {
+    try {
+      const response = await dataServiceAPI.addTeamMember(teamId, userId, role);
+      if (response.success) {
+        const updatedTeams = state.teams.map(team => 
+          team.id === teamId ? response.data : team
+        );
+        dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+        toast.success('Team member added successfully');
+      }
+    } catch (error) {
+      console.error('Failed to add team member:', error);
+      toast.error('Failed to add team member');
+      throw error;
+    }
+  };
+
+  const removeTeamMember = async (teamId: string, userId: string) => {
+    try {
+      const response = await dataServiceAPI.removeTeamMember(teamId, userId);
+      if (response.success) {
+        const updatedTeams = state.teams.map(team => 
+          team.id === teamId ? response.data : team
+        );
+        dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+        toast.success('Team member removed successfully');
+      }
+    } catch (error) {
+      console.error('Failed to remove team member:', error);
+      toast.error('Failed to remove team member');
+      throw error;
+    }
+  };
+
   const contextValue: AppContextValue = {
     ...state,
     login,
@@ -1213,6 +1514,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateUserRole,
     removeUser,
     createDirectChat,
+    createGroupChat,
     isModalOpen: state.isModalOpen,
     modalContent: state.modalContent,
     openModal,
@@ -1230,6 +1532,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getChatDisplayName,
     deleteChat,
     clearChatMessages,
+    fetchTasks,
+    fetchTeams,
+    createTask,
+    updateTask,
+    deleteTask,
+    addTaskComment,
+    createTeam,
+    updateTeam,
+    deleteTeam,
+    addTeamMember,
+    removeTeamMember,
   };
 
   return (

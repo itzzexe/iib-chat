@@ -138,9 +138,19 @@ export default function LoginForm() {
 
         {/* Footer */}
         <div className="text-center mt-8">
-          <p className="text-sm text-secondary-500 dark:text-secondary-400">
+          <p className="text-sm text-secondary-500 dark:text-secondary-400 mb-4">
             {t('login.footer')}
           </p>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.clear();
+              window.location.reload();
+            }}
+            className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 underline"
+          >
+            Clear Stored Data
+          </button>
         </div>
       </div>
     </div>

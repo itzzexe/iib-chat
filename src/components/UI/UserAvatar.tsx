@@ -32,7 +32,21 @@ export default function UserAvatar({
   // Get first character only from user name
   const getInitials = (name: string) => {
     if (!name) return '?';
-    return name.trim().charAt(0).toUpperCase();
+    const trimmedName = name.trim();
+    if (trimmedName.length === 0) return '?';
+    
+    // Get the first character and convert to uppercase
+    const firstChar = trimmedName.charAt(0);
+    
+    // Handle different character sets
+    if (firstChar.match(/[a-zA-Z]/)) {
+      return firstChar.toUpperCase();
+    } else if (firstChar.match(/[\u0600-\u06FF]/)) {
+      // Non-Latin characters
+      return firstChar;
+    } else {
+      return firstChar;
+    }
   };
 
   // Generate consistent color based on user name
@@ -40,10 +54,8 @@ export default function UserAvatar({
     if (!name) return 'bg-gray-500';
     
     const colors = [
-      'bg-red-500',
       'bg-blue-500',
       'bg-green-500',
-      'bg-yellow-500',
       'bg-purple-500',
       'bg-pink-500',
       'bg-indigo-500',
@@ -51,7 +63,13 @@ export default function UserAvatar({
       'bg-orange-500',
       'bg-cyan-500',
       'bg-lime-500',
-      'bg-amber-500'
+      'bg-amber-500',
+      'bg-red-500',
+      'bg-yellow-500',
+      'bg-emerald-500',
+      'bg-violet-500',
+      'bg-rose-500',
+      'bg-sky-500'
     ];
     
     // Simple hash function to get consistent color
@@ -66,31 +84,12 @@ export default function UserAvatar({
 
   const initials = getInitials(user.name);
   const backgroundColor = getBackgroundColor(user.name);
-  const hasAvatar = user.avatar && user.avatar.trim() !== '';
 
   return (
     <div className={`relative ${className}`}>
-      {hasAvatar ? (
-        // Show actual image if available
-        <img
-          src={user.avatar}
-          alt={user.name}
-          className={`${sizeClasses[size]} rounded-full object-cover shadow-lg border-2 border-white dark:border-secondary-800 select-none`}
-          onError={(e) => {
-            // If image fails to load, hide it and show initials instead
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-            const fallback = target.nextElementSibling as HTMLElement;
-            if (fallback) {
-              fallback.style.display = 'flex';
-            }
-          }}
-        />
-      ) : null}
-      
-      {/* Fallback initials (shown if no avatar or if image fails to load) */}
+      {/* Always show initials instead of images */}
       <div
-        className={`${sizeClasses[size]} ${backgroundColor} rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-secondary-800 select-none ${hasAvatar ? 'hidden' : 'flex'}`}
+        className={`${sizeClasses[size]} ${backgroundColor} rounded-full flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-secondary-800 select-none`}
         title={user.name}
         style={{ 
           minWidth: sizeClasses[size].split(' ')[0].replace('w-', '').replace('h-', '') + 'px',

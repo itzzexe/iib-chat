@@ -7,6 +7,31 @@ const { logAction } = require('../services/auditLogService');
 
 const router = express.Router();
 
+// Get current user profile
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'User not found' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Get current user error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Internal server error' 
+    });
+  }
+});
+
 // Get all approved users
 router.get('/', authenticateToken, async (req, res) => {
   try {
@@ -134,12 +159,17 @@ router.patch('/:id/role', authenticateToken, requireManager, validateObjectId(),
     user.role = role;
     await user.save();
     
+    console.log(`User role updated: ${user.name} (${user.email}) from ${oldRole} to ${role}`);
+    
     await logAction(req.user.userId, 'user.role.updated', id, { oldRole, newRole: role });
 
+    // Fetch the updated user to ensure we return the latest data
+    const updatedUser = await User.findById(id).select('-password');
+    
     res.json({
       success: true,
       message: 'User role updated successfully',
-      data: user.toJSON()
+      data: updatedUser.toJSON()
     });
   } catch (error) {
     console.error('Update user role error:', error);

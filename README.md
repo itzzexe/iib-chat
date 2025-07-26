@@ -19,6 +19,7 @@ This project is developed and maintained by **ITZ**.
 - **Role-based Access Control** (Manager/Employee)
 - **Admin Dashboard** for user management
 - **Account Approval System** for new registrations
+- **English Language Interface** throughout the application
 
 ### 💬 Real-time Messaging
 - **Instant Messaging** with Socket.IO
@@ -59,10 +60,39 @@ This project is developed and maintained by **ITZ**.
 - **Broadcast Messaging** system
 - **Audit Log Viewer** for tracking activities
 - **System Health Monitoring**
+- **Team Management System** with role-based permissions
+- **Task Management** with calendar integration
 
 ## 🏗️ Architecture
 
-### Frontend (React + TypeScript)
+### System Architecture Diagram
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend       │    │   Database      │
+│   (React)       │◄──►│   (Node.js)     │◄──►│   (MongoDB)     │
+│                 │    │                 │    │                 │
+│ • React 18      │    │ • Express.js    │    │ • User          │
+│ • TypeScript    │    │ • Socket.IO     │    │ • Chat          │
+│ • Tailwind CSS  │    │ • JWT Auth      │    │ • Message       │
+│ • Vite          │    │ • Multer        │    │ • Task          │
+│ • Socket.IO     │    │ • Helmet        │    │ • Team          │
+│                 │    │ • Rate Limiting │    │ • AuditLog      │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Real-time     │    │   File Storage  │    │   Indexes       │
+│   Communication │    │   (Uploads)     │    │   & Validation  │
+│                 │    │                 │    │                 │
+│ • WebSocket     │    │ • Image Files   │    │ • Email Index   │
+│ • Typing        │    │ • Documents     │    │ • Chat Index    │
+│ • Notifications │    │ • Avatars       │    │ • Message Index │
+│ • Status Updates│    │ • Metadata      │    │ • Text Search   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+### Frontend Architecture (React + TypeScript)
 ```
 src/
 ├── components/          # Reusable UI components
@@ -71,6 +101,7 @@ src/
 │   ├── Chat/           # Chat interface components
 │   ├── Layout/         # Layout and navigation
 │   ├── Settings/       # User settings
+│   ├── Tasks/          # Task and team management
 │   └── UI/             # Common UI elements
 ├── context/            # React context providers
 ├── services/           # API and utility services
@@ -78,7 +109,7 @@ src/
 └── styles/             # CSS and styling
 ```
 
-### Backend (Node.js + Express)
+### Backend Architecture (Node.js + Express)
 ```
 server/
 ├── config/             # Database and app configuration
@@ -87,6 +118,158 @@ server/
 ├── routes/             # API route handlers
 ├── services/           # Business logic services
 └── uploads/            # File upload storage
+```
+
+## 🗄️ Database Schema
+
+### Entity Relationship Diagram
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│    User     │    │    Chat     │    │   Message   │
+│             │    │             │    │             │
+│ • id        │◄──►│ • id        │◄──►│ • id        │
+│ • name      │    │ • name      │    │ • chatId    │
+│ • email     │    │ • type      │    │ • senderId  │
+│ • password  │    │ • participants│  │ • content   │
+│ • role      │    │ • createdBy │    │ • type      │
+│ • status    │    │ • isActive  │    │ • reactions │
+│ • avatar    │    │ • timestamps│    │ • readBy    │
+│ • timestamps│    └─────────────┘    │ • timestamps│
+└─────────────┘            │          └─────────────┘
+       │                   │                   │
+       │                   │                   │
+       ▼                   ▼                   ▼
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│    Task     │    │    Team     │    │  AuditLog   │
+│             │    │             │    │             │
+│ • id        │    │ • id        │    │ • id        │
+│ • title     │    │ • name      │    │ • userId    │
+│ • description│   │ • description│   │ • action    │
+│ • status    │    │ • leader    │    │ • resource  │
+│ • priority  │    │ • members   │    │ • resourceId│
+│ • assignedTo│    │ • isActive  │    │ • details   │
+│ • createdBy │    │ • timestamps│    │ • timestamps│
+│ • teamId    │    └─────────────┘    └─────────────┘
+│ • timestamps│
+└─────────────┘
+```
+
+### Detailed Schema Definitions
+
+#### User Model
+```javascript
+{
+  name: String (required, min: 2 chars, trim: true),
+  email: String (required, unique, lowercase, email format),
+  password: String (required, min: 6 chars, hashed, select: false),
+  role: String (enum: ['manager', 'employee'], default: 'employee'),
+  avatar: String (default: ''),
+  status: String (enum: ['online', 'offline', 'away', 'busy'], default: 'offline'),
+  lastSeen: Date (default: now),
+  isApproved: Boolean (default: false),
+  registeredAt: Date (default: now),
+  timestamps: true
+}
+```
+
+#### Chat Model
+```javascript
+{
+  name: String (required, max: 100 chars, trim: true),
+  type: String (enum: ['direct', 'group', 'general', 'announcements'], required),
+  participants: [String] (required, User IDs),
+  lastMessage: {
+    content: String (max: 1000 chars),
+    senderId: String,
+    senderName: String,
+    timestamp: Date
+  },
+  description: String (max: 500 chars),
+  createdBy: String (User ID),
+  isArchived: Boolean (default: false),
+  unreadCount: Number (default: 0, min: 0),
+  timestamps: true
+}
+```
+
+#### Message Model
+```javascript
+{
+  chatId: String (required, indexed),
+  senderId: String (required, indexed),
+  senderName: String (required, max: 50 chars),
+  content: String (required, max: 5000 chars),
+  type: String (enum: ['text', 'file', 'announcement', 'general'], default: 'text'),
+  fileUrl: String (conditional, required for file type),
+  fileName: String,
+  fileType: String,
+  isUrgent: Boolean (default: false),
+  reactions: [{
+    emoji: String (required, max: 10 chars),
+    userId: String (required),
+    userName: String (required, max: 50 chars),
+    timestamp: Date (default: now)
+  }],
+  replyTo: ObjectId (ref: 'Message'),
+  replyToContent: String,
+  replyToSender: String,
+  isDeleted: Boolean (default: false),
+  editedAt: Date,
+  readBy: [{
+    userId: String,
+    readAt: Date (default: now)
+  }],
+  fileSize: Number,
+  timestamps: true
+}
+```
+
+#### Task Model
+```javascript
+{
+  title: String (required, max: 200 chars),
+  description: String (max: 1000 chars),
+  status: String (enum: ['pending', 'in-progress', 'completed', 'cancelled'], default: 'pending'),
+  priority: String (enum: ['low', 'medium', 'high', 'urgent'], default: 'medium'),
+  assignedTo: ObjectId (ref: 'User'),
+  createdBy: ObjectId (ref: 'User', required),
+  teamId: ObjectId (ref: 'Team'),
+  dueDate: Date,
+  completedAt: Date,
+  attachments: [String] (file URLs),
+  comments: [{
+    userId: ObjectId (ref: 'User'),
+    content: String (required),
+    timestamp: Date (default: now)
+  }],
+  timestamps: true
+}
+```
+
+#### Team Model
+```javascript
+{
+  name: String (required, max: 100 chars),
+  description: String (max: 500 chars),
+  leader: ObjectId (ref: 'User', required),
+  members: [ObjectId] (ref: 'User'),
+  isActive: Boolean (default: true),
+  timestamps: true
+}
+```
+
+#### AuditLog Model
+```javascript
+{
+  userId: ObjectId (ref: 'User'),
+  action: String (required, max: 100 chars),
+  resource: String (required, max: 100 chars),
+  resourceId: ObjectId,
+  details: Object,
+  ipAddress: String (max: 45 chars),
+  userAgent: String (max: 500 chars),
+  timestamp: Date (default: now)
+}
 ```
 
 ## 🚀 Quick Start
@@ -119,13 +302,10 @@ server/
    ```bash
    # Create environment file for backend
    cd server
-   cp .env.example .env
-   
-   # Edit .env with your configuration
-   # Required variables:
-   # - MONGODB_URI=mongodb://localhost:27017/iib-chat
-   # - JWT_SECRET=your-secret-key
-   # - PORT=3000
+   # Create .env file with the following content:
+   # MONGODB_URI=mongodb://localhost:27017/iib-chat
+   # JWT_SECRET=your-secret-key
+   # PORT=3000
    ```
 
 4. **Database Setup**
@@ -141,10 +321,10 @@ server/
    
    # Or start separately:
    # Backend
-   npm run server
+   npm run server:dev
    
    # Frontend (in new terminal)
-   npm run client
+   npm run dev
    ```
 
 6. **Access the Application**
@@ -162,16 +342,25 @@ server/
 MONGODB_URI=mongodb://localhost:27017/iib-chat
 
 # Authentication
-JWT_SECRET=your-super-secret-jwt-key
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_EXPIRES_IN=7d
 
 # Server
 PORT=3000
+HOST=0.0.0.0
 NODE_ENV=development
 
 # File Upload
-MAX_FILE_SIZE=5242880  # 5MB in bytes
+MAX_FILE_SIZE=5242880
 UPLOAD_PATH=./uploads
+
+# Security
+CORS_ORIGIN=http://localhost:5173
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=200
+
+# Logging
+LOG_LEVEL=info
 ```
 
 ### Frontend Configuration
@@ -193,7 +382,18 @@ The frontend automatically connects to the backend API. For production deploymen
    - Send messages, files, and reactions
    - Use @mentions for notifications
 
-3. **Profile Management**
+3. **Task Management**
+   - View assigned tasks and team tasks
+   - Update task status and progress
+   - Add comments and attachments
+   - Use calendar view for scheduling
+
+4. **Team Collaboration**
+   - View team information and members
+   - Participate in team tasks
+   - Track team progress and statistics
+
+5. **Profile Management**
    - Upload profile picture
    - Update personal information
    - Manage notification preferences
@@ -207,13 +407,25 @@ The frontend automatically connects to the backend API. For production deploymen
    - Monitor user activity
    - Manage user permissions
 
-2. **Chat Oversight**
+2. **Team Management**
+   - Create and manage teams
+   - Assign team leads and members
+   - Monitor team performance
+   - Manage team permissions
+
+3. **Task Administration**
+   - Create and assign tasks
+   - Monitor task progress
+   - Generate task reports
+   - Manage task priorities
+
+4. **Chat Oversight**
    - View all chat conversations
    - Delete inappropriate messages
    - Broadcast announcements
    - Monitor system usage
 
-3. **System Administration**
+5. **System Administration**
    - View audit logs
    - Monitor system health
    - Manage application settings
@@ -226,10 +438,7 @@ The frontend automatically connects to the backend API. For production deploymen
 ```bash
 # Development
 npm run dev          # Start both frontend and backend
-npm run client       # Start frontend only
-npm run server       # Start backend only
-
-# Building
+npm run server:dev   # Start backend only
 npm run build        # Build for production
 npm run preview      # Preview production build
 
@@ -433,8 +642,10 @@ For support and questions:
 - [ ] **Message Encryption** end-to-end
 - [ ] **Plugin System** for extensions
 - [ ] **API Documentation** with Swagger
-- [ ] **Internationalization** (i18n)
 - [ ] **Advanced Analytics** dashboard
+- [ ] **Time Tracking** integration
+- [ ] **Project Management** features
+- [ ] **Advanced Reporting** tools
 
 ### Version History
 
@@ -442,6 +653,8 @@ For support and questions:
 - **v1.1.0** - Added file sharing and reactions
 - **v1.2.0** - Enhanced admin features and security
 - **v1.3.0** - UI/UX improvements and performance optimization
+- **v1.4.0** - Added task management and calendar system
+- **v1.5.0** - Added team management with role-based permissions
 
 ---
 
@@ -452,4 +665,4 @@ For support and questions:
     <a href="https://github.com/itzzexe/iib-chat/issues">🐛 Report Bug</a> |
     <a href="https://github.com/itzzexe/iib-chat/issues">💡 Request Feature</a>
   </p>
-</div>
+</div> 

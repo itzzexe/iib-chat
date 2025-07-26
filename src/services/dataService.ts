@@ -3,10 +3,29 @@ import { io, Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { User, Chat, Message, PendingUser, UserSettings } from '../types';
 
-// API Configuration
-const API_BASE_URL = 'http://localhost:3000/api';
-const SOCKET_URL = 'http://localhost:3000';
-const SERVER_BASE_URL = 'http://localhost:3000';
+// API Configuration - Get the current hostname for external access
+const getCurrentHost = () => {
+  // If running on localhost, use localhost, otherwise use the current hostname
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    const port = '3000';
+    
+    // For external access, we need to use the server's actual IP
+    // This will be the IP address of the machine running the server
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.endsWith('loca.lt')) {
+      // For production or when backend is exposed on the same domain
+      return `http://${hostname}:${port}`;
+    }
+    
+    // Use local backend for development, including localtunnel
+    return `http://localhost:${port}`;
+  }
+  return 'http://localhost:3000';
+};
+
+const SERVER_BASE_URL = getCurrentHost();
+const API_BASE_URL = `${SERVER_BASE_URL}/api`;
+const SOCKET_URL = SERVER_BASE_URL;
 
 // Create axios instance with default config
 const api = axios.create({
@@ -731,10 +750,10 @@ export const isAuthenticated = (): boolean => {
 
 export const healthCheck = async (): Promise<boolean> => {
   try {
-    const response = await axios.get(`${API_BASE_URL.replace('/api', '')}/api/users/me`, {
-      headers: {
-        Authorization: `Bearer ${getStoredToken()}`
-      },
+    const token = getStoredToken();
+    if (!token) return false;
+    
+    const response = await api.get('/users/me', {
       timeout: 5000
     });
     return response.status === 200;
@@ -768,8 +787,10 @@ export const initializeDataService = async (): Promise<void> => {
   }
 };
 
-// Auto-initialize on import
-initializeDataService();
+// Auto-initialize on import (only in browser)
+if (typeof window !== 'undefined') {
+  initializeDataService();
+}
 
 // Add this new function for avatar upload
 export const uploadAvatar = async (file: File): Promise<User> => {
@@ -874,6 +895,224 @@ export const clearChatMessages = async (chatId: string): Promise<{ deletedCount:
   );
 };
 
+// Task Management API Functions
+export const getTasks = async (): Promise<any> => {
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await api.get('/tasks');
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      console.error(`Failed to fetch tasks (attempt ${attempt}/${maxRetries}):`, error);
+      
+      // If it's the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
+export const getTask = async (taskId: string): Promise<any> => {
+  try {
+    const response = await api.get(`/tasks/${taskId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch task:', error);
+    throw error;
+  }
+};
+
+export const createTask = async (taskData: any): Promise<any> => {
+  try {
+    const response = await api.post('/tasks', taskData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create task:', error);
+    throw error;
+  }
+};
+
+export const updateTask = async (taskId: string, taskData: any): Promise<any> => {
+  try {
+    const response = await api.put(`/tasks/${taskId}`, taskData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to update task:', error);
+    throw error;
+  }
+};
+
+export const deleteTask = async (taskId: string): Promise<void> => {
+  try {
+    await api.delete(`/tasks/${taskId}`);
+  } catch (error) {
+    console.error('Failed to delete task:', error);
+    throw error;
+  }
+};
+
+export const addTaskComment = async (taskId: string, content: string): Promise<any> => {
+  try {
+    const response = await api.post(`/tasks/${taskId}/comments`, { content });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to add task comment:', error);
+    throw error;
+  }
+};
+
+export const getCalendarEvents = async (start?: string, end?: string): Promise<any> => {
+  try {
+    const params = new URLSearchParams();
+    if (start) params.append('start', start);
+    if (end) params.append('end', end);
+    
+    const response = await api.get(`/tasks/calendar/events?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch calendar events:', error);
+    throw error;
+  }
+};
+
+// Team Management API Functions
+export const getTeams = async (): Promise<any> => {
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await api.get('/teams');
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      console.error(`Failed to fetch teams (attempt ${attempt}/${maxRetries}):`, error);
+      
+      // If it's the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Wait before retrying (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
+export const getTeam = async (teamId: string): Promise<any> => {
+  try {
+    const response = await api.get(`/teams/${teamId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch team:', error);
+    throw error;
+  }
+};
+
+
+
+export const removeTeamMember = async (teamId: string, userId: string): Promise<any> => {
+  try {
+    const response = await api.delete(`/teams/${teamId}/members/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to remove team member:', error);
+    throw error;
+  }
+};
+
+// Team Management API Functions with retry logic
+export const createTeam = async (teamData: any): Promise<any> => {
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await api.post('/teams', teamData);
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      console.error(`Failed to create team (attempt ${attempt}/${maxRetries}):`, error);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
+export const updateTeam = async (teamId: string, teamData: any): Promise<any> => {
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await api.put(`/teams/${teamId}`, teamData);
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      console.error(`Failed to update team (attempt ${attempt}/${maxRetries}):`, error);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
+export const deleteTeam = async (teamId: string): Promise<void> => {
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await api.delete(`/teams/${teamId}`);
+      return;
+    } catch (error) {
+      lastError = error;
+      console.error(`Failed to delete team (attempt ${attempt}/${maxRetries}):`, error);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
+export const addTeamMember = async (teamId: string, userId: string, role: string = 'member'): Promise<any> => {
+  const maxRetries = 3;
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await api.post(`/teams/${teamId}/members`, { userId, role });
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      console.error(`Failed to add team member (attempt ${attempt}/${maxRetries}):`, error);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
+
 export default {
   // Auth
   login,
@@ -968,5 +1207,23 @@ export default {
   clearChatMessages,
   
   // New function
-  updateUserProfile
+  updateUserProfile,
+  
+  // Task Management
+  getTasks,
+  getTask,
+  createTask,
+  updateTask,
+  deleteTask,
+  addTaskComment,
+  getCalendarEvents,
+  
+  // Team Management
+  getTeams,
+  getTeam,
+  createTeam,
+  updateTeam,
+  deleteTeam,
+  addTeamMember,
+  removeTeamMember
 };

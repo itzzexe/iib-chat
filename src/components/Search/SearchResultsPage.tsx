@@ -38,7 +38,7 @@ export default function SearchResultsPage() {
           searchResults.map(result => (
             <div key={result.id} className="p-4 bg-secondary-50 dark:bg-secondary-800 rounded-lg">
               <div className="flex items-start gap-3">
-                <UserAvatar user={{ id: result.senderId, name: result.senderName, avatar: result.senderId.avatar } as any} size="sm" />
+                <UserAvatar user={{ id: result.senderId, name: result.senderName, avatar: '' } as any} size="sm" />
                 <div className="flex-1">
                   <div className="flex justify-between items-center">
                     <p className="font-bold">{result.senderName}</p>

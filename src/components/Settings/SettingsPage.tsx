@@ -8,11 +8,9 @@ import {
   Bell, 
   BellOff, 
   User, 
-  Globe, 
   Activity,
-
   Save,
-  ArrowLeft
+  X
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -25,8 +23,10 @@ export default function SettingsPage() {
     notifications,
     setCurrentScreen, 
     updateUserSettings, 
+    updateUserStatus,
     updateUserProfile,
-    requestNotificationPermission
+    requestNotificationPermission,
+    closeModal
   } = useApp();
 
   const [profileForm, setProfileForm] = useState({
@@ -34,6 +34,7 @@ export default function SettingsPage() {
   });
   
   const [profileSaving, setProfileSaving] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   if (!currentUser) return null;
 
@@ -55,14 +56,27 @@ export default function SettingsPage() {
     updateUserSettings({ notifications: !currentSettings.notifications });
   };
 
-  const handleStatusChange = (status: 'online' | 'offline' | 'away' | 'busy') => {
-    updateUserSettings({ status });
+  const handleStatusChange = async (status: 'online' | 'offline' | 'away' | 'busy') => {
+    if (statusUpdating) return; // Prevent multiple clicks
+    
+    setStatusUpdating(true);
+    try {
+      console.log('Updating status to:', status);
+      // Update user status in database
+      await updateUserStatus(status);
+      // Update local settings
+      updateUserSettings({ status });
+      console.log('Status updated successfully');
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      // Show error message to user
+      alert('Failed to update status. Please try again.');
+    } finally {
+      setStatusUpdating(false);
+    }
   };
 
-  const handleLanguageChange = (language: 'en' | 'ar') => {
-    updateUserSettings({ language });
-    i18n.changeLanguage(language);
-  };
+
 
   const handleProfileSave = async () => {
     setProfileSaving(true);
@@ -81,29 +95,29 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white dark:bg-secondary-900">
+    <div className="flex-1 flex flex-col bg-white dark:bg-secondary-900 h-full">
       {/* Header */}
-      <div className="flex items-center gap-4 p-6 border-b border-secondary-200 dark:border-secondary-700">
-        <button
-          onClick={() => setCurrentScreen('chat')}
-          className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-600 dark:text-secondary-400"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+      <div className="flex items-center justify-between p-4 border-b border-secondary-200 dark:border-secondary-700">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary-100 dark:bg-primary-900 rounded-lg">
             <Settings className="w-6 h-6 text-primary-600 dark:text-primary-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-secondary-900 dark:text-white">Settings</h1>
-            <p className="text-secondary-600 dark:text-secondary-400">Manage your preferences and profile</p>
+            <h1 className="text-xl font-bold text-secondary-900 dark:text-white">Settings</h1>
+            <p className="text-sm text-secondary-600 dark:text-secondary-400">Manage your preferences</p>
           </div>
         </div>
+        <button
+          onClick={closeModal}
+          className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-800 text-secondary-600 dark:text-secondary-400"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Settings Content */}
-      <div className="flex-1 flex justify-center items-center">
-        <div className="w-full max-w-md bg-white dark:bg-secondary-900 rounded-xl shadow-lg p-4 overflow-auto max-h-[80vh]">
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="w-full max-w-lg mx-auto bg-white dark:bg-secondary-900 rounded-xl shadow-lg p-6 max-h-[calc(100vh-120px)] overflow-y-auto">
           {/* Profile Settings */}
           <div className="mb-6 pb-6 border-b border-secondary-200 dark:border-secondary-700">
             <div className="flex items-center gap-2 mb-4">
@@ -191,25 +205,34 @@ export default function SettingsPage() {
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {[
-                  { value: 'online', label: 'Online', color: 'bg-green-500' },
-                  { value: 'away', label: 'Away', color: 'bg-yellow-500' },
-                  { value: 'busy', label: 'Busy', color: 'bg-red-500' },
-                  { value: 'offline', label: 'Offline', color: 'bg-secondary-400' }
-                ].map(({ value, label, color }) => (
+                  { value: 'online', label: 'Online', color: 'bg-green-500', description: 'Available for chat' },
+                  { value: 'away', label: 'Away', color: 'bg-yellow-500', description: 'Temporarily unavailable' },
+                  { value: 'busy', label: 'Busy', color: 'bg-red-500', description: 'Do not disturb' },
+                  { value: 'offline', label: 'Offline', color: 'bg-secondary-400', description: 'Not available' }
+                ].map(({ value, label, color, description }) => (
                   <button
                     key={value}
                     onClick={() => handleStatusChange(value as any)}
-                    className={`flex items-center gap-2 p-2 rounded-lg border-2 transition-all ${
+                    disabled={statusUpdating}
+                    className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all hover:shadow-md ${
                       currentSettings.status === value
                         ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
                         : 'border-secondary-200 dark:border-secondary-700 hover:border-secondary-300 dark:hover:border-secondary-600'
-                    }`}
+                    } ${statusUpdating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={description}
                   >
-                    <div className={`w-2 h-2 rounded-full ${color}`}></div>
+                    <div className={`w-3 h-3 rounded-full ${color}`}></div>
                     <span className="font-medium text-secondary-900 dark:text-white text-sm">{label}</span>
+                    <span className="text-xs text-secondary-500 dark:text-secondary-400 text-center">{description}</span>
+                    {statusUpdating && currentSettings.status === value && (
+                      <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+                    )}
                   </button>
                 ))}
               </div>
+              <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-2">
+                Click on a status to update your availability. Changes will be visible to other users.
+              </p>
             </div>
           </div>
           {/* Notification Settings */}
@@ -265,39 +288,9 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
-          {/* Language Settings */}
-          <div className="mb-6 pb-6 border-b border-secondary-200 dark:border-secondary-700">
-            <div className="flex items-center gap-2 mb-4">
-              <Globe className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-              <h2 className="text-base font-semibold text-secondary-900 dark:text-white">Language</h2>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                Interface Language
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: 'en', label: 'English', flag: '🇺🇸' },
-                  { value: 'ar', label: 'العربية', flag: '🇸🇦' }
-                ].map(({ value, label, flag }) => (
-                  <button
-                    key={value}
-                    onClick={() => handleLanguageChange(value as any)}
-                    className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-all text-xs font-medium ${
-                      currentSettings.language === value
-                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
-                        : 'border-secondary-200 dark:border-secondary-700 hover:border-secondary-300 dark:hover:border-secondary-600'
-                    }`}
-                  >
-                    <span className="text-2xl">{flag}</span>
-                    <span>{label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+
           {/* Account Info */}
-          <div>
+          <div className="mb-6">
             <h2 className="text-base font-semibold text-secondary-900 dark:text-white mb-4">Account Information</h2>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -320,6 +313,8 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+          
+
         </div>
       </div>
     </div>

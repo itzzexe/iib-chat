@@ -28,9 +28,27 @@ export default function MemberManagementPage() {
     return matchesSearch && matchesRole;
   });
 
-  const handleRoleChange = (userId: string, newRole: 'manager' | 'employee') => {
-    updateUserRole(userId, newRole);
-    setEditingUserId(null);
+  const handleRoleChange = async (userId: string, newRole: 'manager' | 'employee') => {
+    try {
+      console.log('Updating role for user:', userId, 'to:', newRole);
+      const updatedUser = await updateUserRole(userId, newRole);
+      console.log('Updated user data:', updatedUser);
+      setEditingUserId(null);
+      
+      // Force a re-render by updating the local state
+      const updatedUsers = users.map(user => 
+        user.id === userId ? { ...user, role: newRole } : user
+      );
+      
+      // Show success message
+      const user = users.find(u => u.id === userId);
+      if (user) {
+        alert(`Successfully updated ${user.name}'s role to ${newRole}`);
+      }
+    } catch (error) {
+      console.error('Failed to update user role:', error);
+      alert('Failed to update user role. Please make sure you have manager permissions.');
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -54,7 +72,7 @@ export default function MemberManagementPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white dark:bg-secondary-900">
+    <div className="flex-1 flex flex-col bg-white dark:bg-secondary-900 h-full">
       {/* Header */}
       <div className="flex items-center gap-4 p-6 border-b border-secondary-200 dark:border-secondary-700">
         <button
@@ -151,12 +169,12 @@ export default function MemberManagementPage() {
           className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors duration-200"
         >
           <Crown className="w-4 h-4" />
-          <span>إضافة مدير جديد</span>
+          <span>Add New Manager</span>
         </button>
 
         {editingUserId === 'new-manager' && (
           <div className="mt-4 p-4 bg-white dark:bg-secondary-800 rounded-lg border border-secondary-200 dark:border-secondary-700 shadow-lg">
-            <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4">إضافة مدير جديد</h3>
+            <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4">Add New Manager</h3>
             <form onSubmit={(e) => {
               e.preventDefault();
               const form = e.target as HTMLFormElement;
@@ -172,7 +190,7 @@ export default function MemberManagementPage() {
             }}>
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1">الاسم</label>
+                  <label htmlFor="name" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1">Name</label>
                   <input
                     type="text"
                     id="name"
@@ -182,7 +200,7 @@ export default function MemberManagementPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1">البريد الإلكتروني</label>
+                  <label htmlFor="email" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1">Email</label>
                   <input
                     type="email"
                     id="email"
@@ -192,7 +210,7 @@ export default function MemberManagementPage() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1">كلمة المرور</label>
+                  <label htmlFor="password" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1">Password</label>
                   <input
                     type="password"
                     id="password"
@@ -208,13 +226,13 @@ export default function MemberManagementPage() {
                     onClick={() => setEditingUserId(null)}
                     className="px-4 py-2 bg-secondary-200 hover:bg-secondary-300 dark:bg-secondary-700 dark:hover:bg-secondary-600 text-secondary-800 dark:text-secondary-200 rounded-lg transition-colors duration-200"
                   >
-                    إلغاء
+                    Cancel
                   </button>
                   <button
                     type="submit"
                     className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors duration-200"
                   >
-                    إضافة
+                    Add
                   </button>
                 </div>
               </div>
@@ -224,20 +242,22 @@ export default function MemberManagementPage() {
       </div>
 
       {/* Members List */}
-      <div className="flex-1 overflow-y-auto p-6 flex flex-col justify-center items-center">
-        <div className="w-full max-w-6xl">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="w-full max-w-6xl mx-auto">
           {filteredUsers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-secondary-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-secondary-900 dark:text-white mb-2">
-                No members found
-              </h3>
-              <p className="text-secondary-500 dark:text-secondary-400">
-                Try adjusting your search or filter criteria.
-              </p>
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 text-secondary-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-secondary-900 dark:text-white mb-2">
+                  No members found
+                </h3>
+                <p className="text-secondary-500 dark:text-secondary-400">
+                  Try adjusting your search or filter criteria.
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="grid gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-items-center">
+            <div className="space-y-4">
               {filteredUsers.map((user) => {
                 const RoleIcon = getRoleIcon(user.role);
                 const isEditing = editingUserId === user.id;
@@ -245,102 +265,110 @@ export default function MemberManagementPage() {
                 return (
                   <div
                     key={user.id}
-                    className="bg-white dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow flex flex-col h-full min-w-[260px] max-w-xs w-full"
+                    className="bg-white dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow w-full"
                   >
-                    <div className="flex items-center gap-4 mb-4">
-                      {/* Avatar and Status */}
-                      <div className="relative">
-                        <UserAvatar user={user} size="lg" showStatus={true} />
-                      </div>
-                      {/* User Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-lg font-bold text-secondary-900 dark:text-white truncate">
-                            {user.name}
-                          </h3>
-                          {user.email === 'iibadmin@iib.com' && (
-                            <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 text-xs rounded-full font-medium">
-                              ADMIN
-                            </span>
-                          )}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* Avatar and Status */}
+                        <div className="relative">
+                          <UserAvatar user={user} size="md" showStatus={true} />
                         </div>
-                        <p className="text-secondary-600 dark:text-secondary-400 mb-1 truncate text-sm">
-                          {user.email}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs">
-                          <UserStatusIndicator status={user.status === 'busy' ? 'offline' : user.status} />
-                          <span className={`font-medium capitalize ${getStatusColor(user.status)}`}>{user.status}</span>
-                          <span className="text-secondary-400">•</span>
-                          <span className="text-secondary-500 dark:text-secondary-400">Last seen:</span>
-                          <span className="text-secondary-700 dark:text-secondary-300">
-                            {isValid(parseISO(user.lastSeen as unknown as string)) ? format(parseISO(user.lastSeen as unknown as string), 'MMM d, HH:mm') : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    {/* Role & Actions */}
-                    <div className="flex items-center gap-3 mb-2">
-                      {isEditing ? (
-                        <div className="flex items-center gap-2 w-full">
-                          <select
-                            value={selectedRole}
-                            onChange={(e) => setSelectedRole(e.target.value as any)}
-                            className="px-3 py-1 border border-secondary-300 dark:border-secondary-600 rounded-lg text-sm bg-white dark:bg-secondary-900 text-secondary-900 dark:text-white"
-                          >
-                            <option value="employee">Employee</option>
-                            <option value="manager">Manager</option>
-                          </select>
-                          <button
-                            onClick={() => handleRoleChange(user.id, selectedRole)}
-                            className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setEditingUserId(null)}
-                            className="p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3 w-full">
-                          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${getRoleColor(user.role)}`}>
-                            <RoleIcon className="w-4 h-4" />
-                            <span className="font-medium capitalize">{user.role}</span>
+                        {/* User Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-base font-bold text-secondary-900 dark:text-white truncate">
+                              {user.name}
+                            </h3>
+                            {user.email === 'iibadmin@iib.com' && (
+                              <span className="px-2 py-1 bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 text-xs rounded-full font-medium">
+                                ADMIN
+                              </span>
+                            )}
                           </div>
-                          {/* Edit Role Button - Only for non-admin users */}
-                          {currentUser?.role === 'manager' && user.email !== 'admin@app.com' && (
-                            <>
-                              <button
-                                onClick={() => {
-                                  setEditingUserId(user.id);
-                                  setSelectedRole(user.role);
-                                }}
-                                className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-600 dark:text-secondary-400"
-                                title="Change role"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Are you sure you want to remove ${user.name}?`)) {
-                                    removeUser(user.id);
-                                  }
-                                }}
-                                className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-800 text-red-600 dark:text-red-400"
-                                title="Remove user"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
+                          <p className="text-secondary-600 dark:text-secondary-400 mb-1 truncate text-sm">
+                            {user.email}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs">
+                            <UserStatusIndicator status={user.status === 'busy' ? 'offline' : user.status} />
+                            <span className={`font-medium capitalize ${getStatusColor(user.status)}`}>{user.status}</span>
+                            <span className="text-secondary-400">•</span>
+                            <span className="text-secondary-500 dark:text-secondary-400">Last seen:</span>
+                            <span className="text-secondary-700 dark:text-secondary-300">
+                              {isValid(parseISO(user.lastSeen as unknown as string)) ? format(parseISO(user.lastSeen as unknown as string), 'MMM d, HH:mm') : 'N/A'}
+                            </span>
+                          </div>
                         </div>
-                      )}
+                      </div>
+                      
+                      {/* Role & Actions */}
+                      <div className="flex items-center gap-3">
+                        {isEditing ? (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={selectedRole}
+                              onChange={(e) => setSelectedRole(e.target.value as any)}
+                              className="px-3 py-1 border border-secondary-300 dark:border-secondary-600 rounded-lg text-sm bg-white dark:bg-secondary-900 text-secondary-900 dark:text-white"
+                            >
+                              <option value="employee">Employee</option>
+                              <option value="manager">Manager</option>
+                            </select>
+                            <button
+                              onClick={() => handleRoleChange(user.id, selectedRole)}
+                              className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingUserId(null)}
+                              className="p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${getRoleColor(user.role)}`}>
+                              <RoleIcon className="w-4 h-4" />
+                              <span className="font-medium capitalize">{user.role}</span>
+                            </div>
+                            {/* Edit Role Button - Only for managers to edit non-admin users */}
+                            {currentUser?.role === 'manager' && user.email !== 'admin@app.com' && user.id !== currentUser.id ? (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setEditingUserId(user.id);
+                                    setSelectedRole(user.role);
+                                  }}
+                                  className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-600 dark:text-secondary-400"
+                                  title="Change role"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to remove ${user.name}?`)) {
+                                      removeUser(user.id);
+                                    }
+                                  }}
+                                  className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-800 text-red-600 dark:text-red-400"
+                                  title="Remove user"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : currentUser?.role !== 'manager' ? (
+                              <span className="text-xs text-secondary-500 dark:text-secondary-400">
+                                Manager required
+                              </span>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    
                     {/* Additional Info */}
                     {user.registeredAt && (
-                      <div className="mt-auto pt-4 border-t border-secondary-100 dark:border-secondary-700 text-xs flex justify-between items-center">
+                      <div className="mt-3 pt-3 border-t border-secondary-100 dark:border-secondary-700 text-xs flex justify-between items-center">
                         <span className="text-secondary-500 dark:text-secondary-400">
                           Joined: {isValid(parseISO(user.registeredAt as unknown as string)) ? format(parseISO(user.registeredAt as unknown as string), 'MMMM d, yyyy') : 'N/A'}
                         </span>

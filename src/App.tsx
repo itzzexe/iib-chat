@@ -13,6 +13,7 @@ import UserProfile from './components/UserProfile';
 import SearchResultsPage from './components/Search/SearchResultsPage';
 import AdminDashboardPage from './components/Admin/AdminDashboardPage';
 import AuditLogPage from './components/Admin/AuditLogPage';
+import TasksPage from './components/Tasks/TasksPage';
 import Modal from './components/UI/Modal';
 import StartChatModal from './components/Chat/StartChatModal';
 import { useResponsive } from './components/Layout/ResponsiveContainer';
@@ -56,7 +57,7 @@ function App() {
   }, [notifications.requested, requestNotificationPermission]);
 
   useEffect(() => {
-    // فتح النوافذ المنبثقة للشاشات الثانوية
+    // Open modal windows for secondary screens
     if (currentScreen === 'settings') {
       openModal(<SettingsPage />);
     } else if (currentScreen === 'profile') {
@@ -83,16 +84,27 @@ function App() {
           <p className="text-secondary-600 dark:text-secondary-400 mb-4">
             {errorMessage}
           </p>
-          <button
-            onClick={() => {
-              setHasError(false);
-              setErrorMessage('');
-              window.location.reload();
-            }}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-          >
-            Reload App
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setHasError(false);
+                setErrorMessage('');
+                window.location.reload();
+              }}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >
+              Reload App
+            </button>
+            <button
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 ml-2"
+            >
+              Clear Data & Reload
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -128,22 +140,21 @@ function App() {
 
     const renderCurrentScreen = () => {
       switch (currentScreen) {
-        case 'settings':
-          return <SettingsPage />;
         case 'user-requests':
           return <UserRequestsPage />;
         case 'member-management':
           return <MemberManagementPage />;
         case 'private-chat-oversight':
           return <PrivateChatOversight />;
-        case 'profile':
-          return <UserProfile />;
         case 'search-results':
           return <SearchResultsPage />;
         case 'admin-dashboard':
           return <AdminDashboardPage />;
         case 'audit-log':
           return <AuditLogPage />;
+        case 'tasks':
+          return <TasksPage />;
+ // For now, calendar view is handled within TasksPage
         case 'chat':
         default:
           return <ChatArea />;
