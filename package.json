@@ -1,0 +1,84 @@
+{
+  "name": "iib-chat-application",
+  "version": "1.0.0",
+  "description": "A modern, real-time chat application built with React, Node.js, Express, MongoDB, and Socket.IO",
+  "type": "module",
+  "main": "src/main.tsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "server": "cd server && npm start",
+    "server:dev": "cd server && npm run dev",
+    "start": "npm run server",
+    "install:all": "npm install && cd server && npm install",
+    "clean": "rm -rf node_modules package-lock.json && cd server && rm -rf node_modules package-lock.json",
+    "clean:install": "npm run clean && npm run install:all"
+  },
+  "keywords": [
+    "chat",
+    "real-time",
+    "socket.io",
+    "react",
+    "nodejs",
+    "express",
+    "mongodb",
+    "typescript"
+  ],
+  "author": "ITZ",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
+    "date-fns": "^4.1.0",
+    "events": "^3.3.0",
+    "i18next": "^25.3.2",
+    "i18next-browser-languagedetector": "^8.2.0",
+    "i18next-http-backend": "^3.0.2",
+    "lucide-react": "^0.536.0",
+    "os-browserify": "^0.3.0",
+    "path-browserify": "^1.0.1",
+    "process": "^0.11.10",
+    "react": "^18.2.0",
+    "react-big-calendar": "^1.19.4",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-i18next": "^15.6.0",
+    "react-router-dom": "^6.28.0",
+    "recharts": "^3.0.2",
+    "simple-peer": "^9.11.1",
+    "socket.io-client": "^4.8.1",
+    "stream-browserify": "^3.0.0",
+    "util": "^0.12.5",
+    "webrtc-adapter": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@typescript-eslint/eslint-plugin": "^7.2.0",
+    "@typescript-eslint/parser": "^7.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itzzexe/iib-chat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itzzexe/iib-chat/issues"
+  },
+  "homepage": "https://github.com/itzzexe/iib-chat#readme"
+}

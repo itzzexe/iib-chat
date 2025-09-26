@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Responsive Layout Styles */
+@layer utilities {
+  .mobile-layout {
+    @apply flex flex-col;
+  }
+  
+  .desktop-layout {
+    @apply flex flex-row;
+  }
+  
+  /* Mobile-first responsive utilities */
+  .responsive-grid {
+    @apply grid grid-cols-1 gap-4;
+  }
+  
+  @screen sm {
+    .responsive-grid {
+      @apply grid-cols-2;
+    }
+  }
+  
+  @screen md {
+    .responsive-grid {
+      @apply grid-cols-3;
+    }
+  }
+  
+  @screen lg {
+    .responsive-grid {
+      @apply grid-cols-4;
+    }
+  }
+  
+  /* Responsive text sizes */
+  .responsive-text {
+    @apply text-sm;
+  }
+  
+  @screen sm {
+    .responsive-text {
+      @apply text-base;
+    }
+  }
+  
+  @screen lg {
+    .responsive-text {
+      @apply text-lg;
+    }
+  }
+  
+  /* Mobile-specific styles */
+  @screen max-md {
+    .mobile-hidden {
+      @apply hidden;
+    }
+    
+    .mobile-full-width {
+      @apply w-full;
+    }
+    
+    .mobile-padding {
+      @apply px-4 py-2;
+    }
+  }
+  
+  /* Tablet-specific styles */
+  @screen md {
+    .tablet-grid {
+      @apply grid-cols-2;
+    }
+  }
+  
+  /* Desktop-specific styles */
+  @screen lg {
+    .desktop-grid {
+      @apply grid-cols-3;
+    }
+  }
+  
+  @screen xl {
+    .desktop-grid {
+      @apply grid-cols-4;
+    }
+  }
+}
+
+/* Custom scrollbar for better mobile experience */
+@layer components {
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5);
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.7);
+  }
+}
+
+/* Touch-friendly button styles */
+@layer components {
+  .touch-button {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+  
+  .touch-input {
+    @apply min-h-[44px] px-3 py-2;
+  }
+}

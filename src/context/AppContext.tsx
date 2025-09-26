@@ -1,0 +1,1615 @@
+import React, { createContext, useContext, useReducer, useEffect, useState, ReactNode, useCallback } from 'react';
+import { AppState, User, Chat, Message, PendingUser, UserSettings, FileUpload, SearchResult, BroadcastMessage, AppScreen } from '../types';
+import dataService from '../services/dataService';
+import { webrtcService } from '../services/webrtcService';
+import { toast } from 'react-hot-toast';
+import { playNotificationSound } from '../services/audioService';
+import { logger } from '../utils/logger';
+
+const dataServiceAPI = dataService;
+
+interface AppContextValue extends AppState {
+  // Authentication
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => void;
+  register: (name: string, email: string, password: string, isManager?: boolean) => Promise<boolean>;
+  
+  // Chat functionality
+  sendMessage: (chatId: string, content: string, type?: 'text' | 'file' | 'announcement', file?: FileUpload) => Promise<void>;
+  uploadFile: (file: File) => Promise<FileUpload>;
+  editMessage: (chatId: string, messageId: string, newContent: string) => Promise<void>;
+  deleteMessage: (chatId: string, messageId: string) => Promise<void>;
+  addReaction: (chatId: string, messageId: string, emoji: string) => Promise<void>;
+  
+  // Navigation
+  setActiveChat: (chatId: string | null) => void;
+  setCurrentScreen: (screen: AppScreen) => void;
+  
+  // Settings
+  toggleDarkMode: () => void;
+  updateUserSettings: (settings: Partial<UserSettings>) => Promise<void>;
+  updateUserProfile: (name: string, avatarFile: File | null) => Promise<void>;
+  
+  // Notifications
+  requestNotificationPermission: () => Promise<void>;
+  
+  // User management
+  updateUserStatus: (status: 'online' | 'offline' | 'away' | 'busy') => Promise<void>;
+  searchMessages: (query: string) => void;
+  archiveChat: (chatId: string) => Promise<void>;
+  markChatAsRead: (chatId: string) => Promise<void>;
+  
+  // Manager functions
+  approvePendingUser: (userId: string) => Promise<void>;
+  rejectPendingUser: (userId: string) => Promise<void>;
+  getPendingUsersCount: () => number;
+  
+  // Member management
+  updateUserRole: (userId: string, newRole: 'manager' | 'employee') => Promise<void>;
+  removeUser: (userId: string) => Promise<void>;
+  
+  // Direct chat management
+  createDirectChat: (otherUserId: string) => Promise<void>;
+  createGroupChat: (name: string, participants: string[]) => Promise<void>;
+  
+  // Modal management
+  isModalOpen: boolean;
+  modalContent: React.ReactNode | null;
+  openModal: (content: React.ReactNode) => void;
+  closeModal: () => void;
+
+  // Oversight
+  overseenChats: Chat[];
+  overseenMessages: { [chatId: string]: Message[] };
+  loadOverseenChats: () => Promise<void>;
+  loadMessagesForOversight: (chatId: string) => Promise<void>;
+  activeOversightChat: Chat | null;
+  setActiveOversightChat: (chat: Chat | null) => void;
+
+  // Reply functionality
+  setReplyingTo: (message: Message | null) => void;
+  cancelReply: () => void;
+  replyingTo: Message | null;
+
+  // Typing indicator
+  typingUsers: { [chatId: string]: string[] };
+
+  // New functionality
+  markMessagesAsRead: (chatId: string, messageIds: string[]) => Promise<void>;
+
+  // Search
+  searchResults: SearchResult[];
+  performSearch: (query: string) => Promise<void>;
+  getChatDisplayName: (chat: Chat) => string;
+
+  // New functionality
+  deleteChat: (chatId: string) => Promise<void>;
+  clearChatMessages: (chatId: string) => Promise<{ deletedCount: number } | undefined>;
+
+  // Task Management
+  fetchTasks: () => Promise<void>;
+  fetchTeams: () => Promise<void>;
+  createTask: (taskData: any) => Promise<void>;
+  updateTask: (taskId: string, taskData: any) => Promise<void>;
+  deleteTask: (taskId: string) => Promise<void>;
+  addTaskComment: (taskId: string, content: string) => Promise<void>;
+  
+  // Team Management
+  createTeam: (teamData: any) => Promise<void>;
+  updateTeam: (teamId: string, teamData: any) => Promise<void>;
+  deleteTeam: (teamId: string) => Promise<void>;
+  addTeamMember: (teamId: string, userId: string, role: 'member' | 'lead') => Promise<void>;
+  removeTeamMember: (teamId: string, userId: string) => Promise<void>;
+
+  // Call Management
+  startCall: (chatId: string, callType: 'audio' | 'video', participants: string[]) => Promise<void>;
+  endCall: () => void;
+  answerCall: (callId: string, chatId: string) => Promise<void>;
+  rejectCall: (callId: string) => void;
+}
+
+const AppContext = createContext<AppContextValue | undefined>(undefined);
+
+type AppAction =
+  | { type: 'SET_STATE'; payload: Partial<AppState> }
+  | { type: 'ADD_MESSAGE'; payload: { chatId: string; message: Message } }
+  | { type: 'UPDATE_MESSAGE'; payload: { chatId: string; message: Message } }
+  | { type: 'REMOVE_MESSAGE'; payload: { chatId: string; messageId: string } }
+  | { type: 'SET_TYPING_USERS'; payload: { chatId: string; users: string[] } }
+  | { type: 'MARK_MESSAGES_READ'; payload: { chatId: string; readerId: string; messageIds: string[] } }
+  | { type: 'OPEN_MODAL'; payload: React.ReactNode }
+  | { type: 'CLOSE_MODAL' }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_CURRENT_USER'; payload: User | null }
+  | { type: 'SET_USERS'; payload: User[] }
+  | { type: 'SET_CHATS'; payload: Chat[] }
+  | { type: 'SET_MESSAGES'; payload: { [chatId: string]: Message[] } }
+  | { type: 'SET_ACTIVE_CHAT'; payload: string | null }
+  | { type: 'SET_PENDING_USERS'; payload: PendingUser[] }
+  | { type: 'UPDATE_USER'; payload: User }
+  | { type: 'SET_OVERSEEN_CHATS'; payload: Chat[] }
+  | { type: 'SET_OVERSEEN_MESSAGES'; payload: { chatId: string; messages: Message[] } }
+  | { type: 'SET_ACTIVE_OVERSIGHT_CHAT'; payload: Chat | null }
+  | { type: 'SET_SEARCH_RESULTS'; payload: SearchResult[] }
+  | { type: 'SET_CURRENT_SCREEN'; payload: AppScreen }
+  | { type: 'SET_DARK_MODE'; payload: boolean }
+  | { type: 'SET_USER_SETTINGS'; payload: { userId: string; settings: UserSettings } }
+  | { type: 'SET_NOTIFICATION_PERMISSION'; payload: boolean }
+  | { type: 'UPDATE_CHAT'; payload: Chat };
+
+const getInitialTheme = (): boolean => {
+  const saved = localStorage.getItem('iib-chat-theme');
+  if (saved) return saved === 'dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+};
+
+const initialState: AppState = {
+  loading: true,
+  currentUser: null,
+  users: [],
+  pendingUsers: [],
+  chats: [],
+  messages: {},
+  activeChat: null,
+  currentScreen: 'chat',
+  darkMode: getInitialTheme(),
+  notifications: {
+    enabled: true,
+    granted: Notification.permission === 'granted',
+    requested: Notification.permission !== 'default'
+  },
+  searchResults: [],
+  userSettings: {},
+  isModalOpen: false,
+  modalContent: null,
+  overseenChats: [],
+  overseenMessages: {},
+  activeOversightChat: null,
+  typingUsers: {},
+  tasks: [],
+  teams: [],
+  activeTask: null,
+  calendarEvents: []
+};
+
+function appReducer(state: AppState, action: AppAction): AppState {
+  switch (action.type) {
+    case 'SET_STATE':
+      return { ...state, ...action.payload };
+    case 'ADD_MESSAGE': {
+      const { chatId, message } = action.payload;
+      const chatMessages = state.messages[chatId] || [];
+      if (chatMessages.some(m => m.id === message.id)) return state; // Avoid duplicates
+      const newMessages = { ...state.messages, [chatId]: [...chatMessages, message] };
+      return { ...state, messages: newMessages };
+    }
+    case 'UPDATE_MESSAGE': {
+      const { chatId, message: updatedMessage } = action.payload;
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [chatId]: state.messages[chatId]?.map(msg => msg.id === updatedMessage.id ? updatedMessage : msg) || []
+        }
+      };
+    }
+    case 'REMOVE_MESSAGE': {
+      const { chatId, messageId } = action.payload;
+      const updatedMessages = state.messages[chatId]?.map(msg =>
+        msg.id === messageId ? { ...msg, isDeleted: true, content: 'This message was deleted.' } : msg
+      ) || [];
+
+      // Update chat's last message if the deleted message was the last one
+      const chat = state.chats.find(c => c.id === chatId);
+      if (chat?.lastMessage && chat.lastMessage.content === updatedMessages[updatedMessages.length - 1]?.content) {
+        const lastValidMessage = [...updatedMessages].reverse().find(m => !m.isDeleted);
+        const updatedChat = {
+          ...chat,
+          lastMessage: lastValidMessage ? {
+            content: lastValidMessage.content,
+            senderId: lastValidMessage.senderId,
+            senderName: lastValidMessage.senderName,
+            timestamp: lastValidMessage.timestamp
+          } : undefined
+        };
+        return {
+          ...state,
+          messages: { ...state.messages, [chatId]: updatedMessages },
+          chats: state.chats.map(c => c.id === chatId ? updatedChat : c)
+        };
+      }
+
+      return {
+        ...state,
+        messages: { ...state.messages, [chatId]: updatedMessages }
+      };
+    }
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_TYPING_USERS': {
+      const { chatId, users } = action.payload;
+      return {
+        ...state,
+        typingUsers: {
+          ...state.typingUsers,
+          [chatId]: [...(state.typingUsers[chatId] || []), ...users]
+        }
+      };
+    }
+    case 'MARK_MESSAGES_READ': {
+      const { chatId, readerId, messageIds } = action.payload;
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [chatId]: state.messages[chatId]?.map(msg =>
+            messageIds.includes(msg.id) && !msg.readBy.some(r => r.userId === readerId)
+              ? { ...msg, readBy: [...msg.readBy, { userId: readerId, readAt: new Date() }] }
+              : msg
+          ) || []
+        }
+      };
+    }
+    case 'OPEN_MODAL':
+      return { ...state, isModalOpen: true, modalContent: action.payload };
+    case 'CLOSE_MODAL':
+      return { ...state, isModalOpen: false, modalContent: null };
+    case 'SET_CURRENT_USER':
+      return { ...state, currentUser: action.payload };
+    case 'SET_USERS':
+      return { ...state, users: action.payload };
+    case 'SET_CHATS':
+      return { ...state, chats: action.payload };
+    case 'SET_MESSAGES':
+      return { ...state, messages: action.payload };
+    case 'SET_ACTIVE_CHAT':
+      return { ...state, activeChat: action.payload };
+    case 'SET_PENDING_USERS':
+      return { ...state, pendingUsers: action.payload };
+    case 'UPDATE_USER':
+      return { 
+        ...state, 
+        users: state.users.map(user => user.id === action.payload.id ? action.payload : user),
+        // Also update currentUser if it's the same user
+        currentUser: state.currentUser?.id === action.payload.id ? action.payload : state.currentUser
+      };
+    case 'SET_OVERSEEN_CHATS':
+      return { ...state, overseenChats: action.payload };
+    case 'SET_OVERSEEN_MESSAGES':
+      return { ...state, overseenMessages: { ...state.overseenMessages, [action.payload.chatId]: action.payload.messages } };
+    case 'SET_ACTIVE_OVERSIGHT_CHAT':
+      return { ...state, activeOversightChat: action.payload };
+    case 'SET_SEARCH_RESULTS':
+      return { ...state, searchResults: action.payload };
+    case 'SET_CURRENT_SCREEN':
+      return { ...state, currentScreen: action.payload };
+    case 'SET_DARK_MODE':
+      localStorage.setItem('iib-chat-theme', action.payload ? 'dark' : 'light');
+      return { ...state, darkMode: action.payload };
+    case 'SET_USER_SETTINGS': {
+      const { userId, settings } = action.payload;
+      
+      // Update notifications state if the settings belong to the current user
+      if (userId === state.currentUser?.id) {
+        return {
+          ...state,
+          userSettings: {
+            ...state.userSettings,
+            [userId]: settings
+          },
+          notifications: {
+            ...state.notifications,
+            enabled: settings.notifications || false
+          }
+        };
+      }
+      
+      return {
+        ...state,
+        userSettings: {
+          ...state.userSettings,
+          [userId]: settings
+        }
+      };
+    }
+    case 'SET_NOTIFICATION_PERMISSION':
+      return {
+        ...state,
+        notifications: {
+          ...state.notifications,
+          granted: action.payload,
+          requested: true
+        }
+      };
+    case 'UPDATE_CHAT': {
+      const updatedChat = action.payload;
+      return {
+        ...state,
+        chats: state.chats.map(chat => 
+          chat.id === updatedChat.id ? updatedChat : chat
+        )
+      };
+    }
+    default:
+      return state;
+  }
+}
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+
+  // Refactor socket listeners to be more robust
+  useEffect(() => {
+    const socket = dataServiceAPI.getSocket();
+    if (socket) {
+      const messageHandler = (message: Message) => {
+        logger.socket('Handling received message', { messageId: message.id, chatId: message.chatId }, 'AppContext');
+        dispatch({ type: 'ADD_MESSAGE', payload: { chatId: message.chatId!, message } });
+        
+        // Update the chat's last message
+        const chatToUpdate = state.chats.find(c => c.id === message.chatId);
+        if (chatToUpdate) {
+          const updatedChat = {
+            ...chatToUpdate,
+            lastMessage: {
+              content: message.content,
+              senderId: message.senderId,
+              senderName: message.senderName,
+              timestamp: message.timestamp
+            },
+            unreadCount: message.senderId !== state.currentUser?.id ? 
+              (chatToUpdate.unreadCount || 0) + 1 : 
+              (chatToUpdate.unreadCount || 0)
+          };
+          dispatch({ type: 'UPDATE_CHAT', payload: updatedChat });
+        }
+        
+        // Show notification and play sound if message is not from current user
+        if (message.senderId !== state.currentUser?.id) {
+          // Play notification sound
+          playNotificationSound();
+          
+                     // Show browser notification if permissions granted and window is not focused
+           if (state.notifications.granted && !document.hasFocus()) {
+             const chatName = chatToUpdate ? getChatDisplayName(chatToUpdate) : 'Unknown Chat';
+            
+            try {
+              const notification = new Notification(`New message from ${message.senderName}`, {
+                body: message.content.length > 100 ? message.content.substring(0, 100) + '...' : message.content,
+                icon: '/favicon.ico',
+                tag: `chat-${message.chatId}`,
+                requireInteraction: false,
+                silent: false
+              });
+              
+              // Auto-close notification after 5 seconds
+              setTimeout(() => {
+                notification.close();
+              }, 5000);
+              
+              // Click to focus window and open chat
+              notification.onclick = () => {
+                window.focus();
+                setActiveChat(message.chatId!);
+                notification.close();
+              };
+            } catch (error) {
+              console.warn('Failed to show notification:', error);
+            }
+          }
+        }
+      };
+      const updatedHandler = (message: Message) => {
+        logger.socket('Handling updated message', { messageId: message.id, chatId: message.chatId }, 'AppContext');
+        dispatch({ type: 'UPDATE_MESSAGE', payload: { chatId: message.chatId!, message } });
+      };
+      const deletedHandler = ({ messageId, chatId }: { messageId: string, chatId: string }) => {
+        logger.socket('Handling deleted message', { messageId, chatId }, 'AppContext');
+        dispatch({ type: 'REMOVE_MESSAGE', payload: { chatId, messageId } });
+      };
+      
+      const userTypingHandler = ({ chatId, userName }: { chatId: string, userName: string }) => {
+        const currentUsers = state.typingUsers?.[chatId] || [];
+        if (!currentUsers.includes(userName)) {
+          dispatch({ type: 'SET_TYPING_USERS', payload: { chatId, users: [...currentUsers, userName] } });
+        }
+      };
+      
+      const userStopTypingHandler = ({ chatId, userName }: { chatId: string, userName: string }) => {
+        const currentUsers = state.typingUsers?.[chatId] || [];
+        dispatch({ type: 'SET_TYPING_USERS', payload: { chatId, users: currentUsers.filter(u => u !== userName) } });
+      };
+
+      const messagesReadHandler = (payload: { chatId: string; readerId: string; messageIds: string[] }) => {
+        dispatch({ type: 'MARK_MESSAGES_READ', payload });
+      };
+
+      const broadcastHandler = (data: BroadcastMessage) => {
+        dispatch({ type: 'OPEN_MODAL', payload: (
+          <div className="p-4 text-center">
+            <h2 className="text-xl font-bold text-red-500">Broadcast from {data.senderName}</h2>
+            <p className="mt-4 text-lg">{data.message}</p>
+            <button
+              onClick={() => dispatch({ type: 'CLOSE_MODAL' })}
+              className="mt-6 px-4 py-2 bg-primary-600 text-white rounded-lg"
+            >
+              Close
+            </button>
+          </div>
+        ) });
+      };
+
+      const chatDeletedHandler = ({ chatId }: { chatId: string }) => {
+        console.log('🗑️ Chat deleted:', chatId);
+        // Remove chat from state
+        dispatch({ type: 'SET_CHATS', payload: state.chats.filter(c => c.id !== chatId) });
+        
+        // Remove messages from state
+        const newMessages = { ...state.messages };
+        delete newMessages[chatId];
+        dispatch({ type: 'SET_MESSAGES', payload: newMessages });
+        
+        // If this was the active chat, clear it
+        if (state.activeChat === chatId) {
+          dispatch({ type: 'SET_ACTIVE_CHAT', payload: null });
+        }
+      };
+
+      const chatClearedHandler = ({ chatId }: { chatId: string }) => {
+        console.log('🧹 Chat cleared:', chatId);
+        // Clear messages from state
+        dispatch({ type: 'SET_MESSAGES', payload: { ...state.messages, [chatId]: [] } });
+        
+        // Update chat's last message
+        const updatedChats = state.chats.map(chat => 
+          chat.id === chatId 
+            ? { ...chat, lastMessage: undefined }
+            : chat
+        );
+        dispatch({ type: 'SET_CHATS', payload: updatedChats });
+      };
+
+      // Task event handlers
+      const taskCreatedHandler = ({ task, createdBy }: { task: any; createdBy: string }) => {
+        logger.info('Handling task created', { taskId: task.id, createdBy, currentUserId: state.currentUser?.id, tasksCount: state.tasks.length }, 'AppContext');
+        
+        // Only add if not already in the list and if it's assigned to current user or user is manager
+        const isAssignedToCurrentUser = task.assignedTo?.id === state.currentUser?.id;
+        const isManager = state.currentUser?.role === 'manager';
+        const isCreator = createdBy === state.currentUser?.id;
+        
+        logger.debug('Task visibility check', {
+          isAssignedToCurrentUser,
+          isManager,
+          isCreator,
+          taskAssignedTo: task.assignedTo?.id,
+          currentUserId: state.currentUser?.id
+        }, 'AppContext');
+        
+        if (isAssignedToCurrentUser || isManager || isCreator) {
+          const existingTask = state.tasks.find(t => t.id === task.id);
+          if (!existingTask) {
+            logger.debug('Adding new task to state', { taskId: task.id }, 'AppContext');
+            dispatch({ type: 'SET_STATE', payload: { tasks: [...state.tasks, task] } });
+          } else {
+            logger.debug('Task already exists in state', { taskId: task.id }, 'AppContext');
+          }
+        } else {
+          logger.debug('Task not visible to current user', { taskId: task.id }, 'AppContext');
+        }
+      };
+
+      const taskUpdatedHandler = ({ task, updatedBy }: { task: any; updatedBy: string }) => {
+        logger.info('Handling task updated', { taskId: task.id, updatedBy }, 'AppContext');
+        const updatedTasks = state.tasks.map(t => t.id === task.id ? task : t);
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      };
+
+      const taskDeletedHandler = ({ taskId, deletedBy }: { taskId: string; deletedBy: string }) => {
+        logger.info('Handling task deleted', { taskId, deletedBy }, 'AppContext');
+        const updatedTasks = state.tasks.filter(t => t.id !== taskId);
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      };
+
+      const taskAssignedHandler = ({ task, assignedBy }: { task: any; assignedBy: string }) => {
+        logger.info('Handling task assigned', { taskId: task.id, assignedBy, assignedTo: task.assignedTo?.id }, 'AppContext');
+        
+        // Show notification for assigned task
+        if (task.assignedTo?.id === state.currentUser?.id && assignedBy !== state.currentUser?.id) {
+          logger.info('Showing task assignment notification', { taskId: task.id }, 'AppContext');
+          toast.info(`You have been assigned a new task: ${task.title}`);
+        } else {
+          logger.debug('Task assignment notification not shown', {
+            taskAssignedTo: task.assignedTo?.id,
+            currentUserId: state.currentUser?.id,
+            assignedBy,
+            isDifferentUser: assignedBy !== state.currentUser?.id
+          }, 'AppContext');
+        }
+      };
+
+      // Remove existing listeners first
+      socket.off('receive-message');
+      socket.off('messageUpdated');
+      socket.off('messageDeleted');
+      socket.off('user-typing');
+      socket.off('user-stop-typing');
+      socket.off('messagesRead');
+      socket.off('global-broadcast');
+      socket.off('chat-deleted');
+      socket.off('chat-cleared');
+      socket.off('task:created');
+      socket.off('task:updated');
+      socket.off('task:deleted');
+      socket.off('task:assigned');
+
+      // Add new listeners
+      socket.on('receive-message', messageHandler);
+      socket.on('messageUpdated', updatedHandler);
+      socket.on('messageDeleted', deletedHandler);
+      socket.on('user-typing', userTypingHandler);
+      socket.on('user-stop-typing', userStopTypingHandler);
+      socket.on('messagesRead', messagesReadHandler);
+      socket.on('global-broadcast', broadcastHandler);
+      socket.on('chat-deleted', chatDeletedHandler);
+      socket.on('chat-cleared', chatClearedHandler);
+      
+      // Task event listeners
+      logger.debug('Setting up task event listeners', {}, 'AppContext');
+      socket.on('task:created', taskCreatedHandler);
+      socket.on('task:updated', taskUpdatedHandler);
+      socket.on('task:deleted', taskDeletedHandler);
+      socket.on('task:assigned', taskAssignedHandler);
+
+      return () => {
+        socket.off('receive-message', messageHandler);
+        socket.off('messageUpdated', updatedHandler);
+        socket.off('messageDeleted', deletedHandler);
+        socket.off('user-typing', userTypingHandler);
+        socket.off('user-stop-typing', userStopTypingHandler);
+        socket.off('messagesRead', messagesReadHandler);
+        socket.off('global-broadcast', broadcastHandler);
+        socket.off('chat-deleted', chatDeletedHandler);
+        socket.off('chat-cleared', chatClearedHandler);
+        socket.off('task:created', taskCreatedHandler);
+        socket.off('task:updated', taskUpdatedHandler);
+        socket.off('task:deleted', taskDeletedHandler);
+        socket.off('task:assigned', taskAssignedHandler);
+      };
+    }
+  }, [state.currentUser?.id, state.chats, state.messages]);
+
+  // Load initial data on mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        
+        // Add a timeout to prevent infinite loading
+        const timeout = setTimeout(() => {
+          console.warn('Loading timeout reached, showing login screen');
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }, 10000);
+        
+        // Check if user is logged in (has token)
+        const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        if (storedToken && storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            dispatch({ type: 'SET_CURRENT_USER', payload: user });
+            
+            // Try to verify the token is still valid
+            try {
+              await dataServiceAPI.getCurrentUser();
+              
+              // Token is valid, proceed to load data
+              try {
+                const [users, chats, tasks, teams] = await Promise.all([
+                  dataServiceAPI.getUsers(),
+                  dataServiceAPI.getChats(),
+                  dataServiceAPI.getTasks(),
+                  dataServiceAPI.getTeams()
+                ]);
+                
+                // Ensure arrays are always returned
+                const safeUsers = Array.isArray(users) ? users : [];
+                const safeChats = Array.isArray(chats) ? chats : [];
+                const safeTasks = Array.isArray(tasks?.data) ? tasks.data : [];
+                const safeTeams = Array.isArray(teams?.data) ? teams.data : [];
+                
+                dispatch({ type: 'SET_USERS', payload: safeUsers });
+                dispatch({ type: 'SET_CHATS', payload: safeChats });
+                dispatch({ type: 'SET_STATE', payload: { tasks: safeTasks, teams: safeTeams } });
+                
+                // Add default messages for default chats
+                const defaultMessages: { [chatId: string]: Message[] } = {};
+                
+                // Find general and announcements chats
+                const generalChat = safeChats.find(c => c.type === 'general');
+                const announcementsChat = safeChats.find(c => c.type === 'announcements');
+                
+                if (generalChat) {
+                  defaultMessages[generalChat.id] = [{
+                    id: 'welcome-general',
+                    senderId: 'system',
+                    senderName: 'System',
+                    content: 'Welcome to the General Chat! This is where team members can have casual conversations and share ideas.',
+                    timestamp: new Date(),
+                    type: 'text',
+                    reactions: [],
+                    readBy: []
+                  }];
+                }
+                
+                if (announcementsChat) {
+                  defaultMessages[announcementsChat.id] = [{
+                    id: 'welcome-announcements',
+                    senderId: 'system',
+                    senderName: 'System',
+                    content: 'This is the official announcements channel. Only managers can post important updates here.',
+                    timestamp: new Date(),
+                    type: 'announcement',
+                    reactions: [],
+                    readBy: []
+                  }];
+                }
+                
+                dispatch({ type: 'SET_MESSAGES', payload: defaultMessages });
+                
+                // Select the first chat automatically
+                if (safeChats.length > 0) {
+                  const firstChat = generalChat || safeChats[0];
+                  dispatch({ type: 'SET_ACTIVE_CHAT', payload: firstChat.id });
+                }
+                
+                // Load pending users if manager
+                if (user.role === 'manager') {
+                  try {
+                    const pendingUsers = await dataServiceAPI.getPendingUsers();
+                    dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+                  } catch (error) {
+                    console.warn('Failed to load pending users:', error);
+                  }
+                }
+                
+                // Connect socket after successful data load
+                try {
+                  await dataServiceAPI.connectSocket(user.id);
+                } catch (error) {
+                  console.warn('Failed to connect socket:', error);
+                }
+                
+              } catch (dataError) {
+                console.warn('Failed to load additional data, but user is valid:', dataError);
+                // Don't clear user if just data loading fails
+              }
+              
+            } catch (tokenError) {
+              console.error('Token validation failed:', tokenError);
+              // Token is invalid, clear stored data
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              dispatch({ type: 'SET_CURRENT_USER', payload: null });
+            }
+          } catch (error) {
+            console.error('Failed to load user data:', error);
+            // Clear invalid stored data
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            dispatch({ type: 'SET_CURRENT_USER', payload: null });
+          }
+        }
+        
+        clearTimeout(timeout);
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    };
+
+    loadInitialData();
+  }, []); // Remove state.activeChat dependency to prevent infinite loops
+
+  // Apply dark mode
+  useEffect(() => {
+    if (state.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [state.darkMode]);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const loginResult = await dataServiceAPI.login(email, password);
+      if (!loginResult || !loginResult.user) {
+        console.error('Login failed: Invalid response');
+        return false;
+      }
+      
+      const { user } = loginResult;
+      
+      // Set current user immediately
+      dispatch({ type: 'SET_CURRENT_USER', payload: user });
+      
+      // Load additional data after successful login
+      try {
+        const [users, chats, tasks, teams] = await Promise.all([
+          dataServiceAPI.getUsers(),
+          dataServiceAPI.getChats(),
+          dataServiceAPI.getTasks(),
+          dataServiceAPI.getTeams()
+        ]);
+        
+        // Ensure arrays are always returned
+        const safeUsers = Array.isArray(users) ? users : [];
+        const safeChats = Array.isArray(chats) ? chats : [];
+        const safeTasks = Array.isArray(tasks?.data) ? tasks.data : [];
+        const safeTeams = Array.isArray(teams?.data) ? teams.data : [];
+        
+        dispatch({ type: 'SET_USERS', payload: safeUsers });
+        dispatch({ type: 'SET_CHATS', payload: safeChats });
+        dispatch({ type: 'SET_STATE', payload: { tasks: safeTasks, teams: safeTeams } });
+        
+        // Select the first chat automatically
+        if (safeChats.length > 0) {
+          const generalChat = safeChats.find(c => c.type === 'general');
+          const firstChat = generalChat || safeChats[0];
+          dispatch({ type: 'SET_ACTIVE_CHAT', payload: firstChat.id });
+        }
+        
+        // Load pending users if manager
+        if (user.role === 'manager') {
+          try {
+            const pendingUsers = await dataServiceAPI.getPendingUsers();
+            dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+          } catch (error) {
+            console.warn('Failed to load pending users:', error);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load additional data after login:', error);
+        // Don't fail the login if data loading fails
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
+    }
+  };
+
+  const register = async (name: string, email: string, password: string, isManager: boolean = false): Promise<boolean> => {
+    try {
+      const result = await dataServiceAPI.register({ name, email, password, isManager });
+      
+      if (result && result.message) {
+        // Reload users and pending users to get updated data
+        try {
+          const [users, pendingUsers] = await Promise.all([
+            dataServiceAPI.getUsers(),
+            dataServiceAPI.getPendingUsers()
+          ]);
+          
+          dispatch({ type: 'SET_USERS', payload: users });
+          dispatch({ type: 'SET_PENDING_USERS', payload: pendingUsers });
+        } catch (dataError) {
+          console.warn('Failed to reload data after registration:', dataError);
+        }
+        
+        return true;
+      }
+      
+      return false;
+    } catch (error: any) {
+      console.error('Registration failed:', error);
+      // Re-throw the error so the component can handle it
+      throw error;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await dataServiceAPI.logout();
+      
+      dispatch({ type: 'SET_CURRENT_USER', payload: null });
+      dispatch({ type: 'SET_ACTIVE_CHAT', payload: null });
+      dispatch({ type: 'SET_CURRENT_SCREEN', payload: 'chat' });
+      dispatch({ type: 'SET_USERS', payload: [] });
+      dispatch({ type: 'SET_CHATS', payload: [] });
+      dispatch({ type: 'SET_MESSAGES', payload: {} });
+      dispatch({ type: 'SET_STATE', payload: { tasks: [], teams: [] } });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
+  };
+
+  const sendMessage = async (chatId: string, content: string, type: 'text' | 'file' | 'announcement' = 'text') => {
+    if (!state.currentUser) return;
+
+    try {
+      // Send message via API
+      await dataServiceAPI.sendMessage({
+        chatId,
+        content,
+        type,
+        isUrgent: false,
+        replyTo: replyingTo?.id
+      });
+
+      // The socket event will handle the state update, but we clear the reply state now
+      setReplyingTo(null);
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      toast.error("Couldn't send message. Please try again.");
+    }
+  };
+
+  const uploadFile = async (file: File): Promise<FileUpload> => {
+    return new Promise((resolve) => {
+      const fileUpload: FileUpload = {
+        file,
+        progress: 0,
+        id: Date.now().toString()
+      };
+
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          fileUpload.preview = e.target?.result as string;
+          // Simulate upload progress
+          let progress = 0;
+          const interval = setInterval(() => {
+            progress += 20;
+            fileUpload.progress = progress;
+            if (progress >= 100) {
+              clearInterval(interval);
+              resolve(fileUpload);
+            }
+          }, 100);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Simulate upload for non-images
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 20;
+          fileUpload.progress = progress;
+          if (progress >= 100) {
+            clearInterval(interval);
+            resolve(fileUpload);
+          }
+        }, 100);
+      }
+    });
+  };
+
+  const editMessage = async (chatId: string, messageId: string, newContent: string) => {
+    try {
+      await dataServiceAPI.editMessage(chatId, messageId, newContent);
+      // The socket event will handle the state update
+    } catch (error) {
+      console.error("Failed to edit message:", error);
+      toast.error("Couldn't edit message. Please try again.");
+    }
+  };
+
+  const deleteMessage = async (chatId: string, messageId: string) => {
+    try {
+      await dataServiceAPI.deleteMessage(chatId, messageId);
+      // The socket event will handle the state update
+    } catch (error) {
+      console.error("Failed to delete message:", error);
+      toast.error("Couldn't delete message. Please try again.");
+    }
+  };
+
+  const addReaction = async (chatId: string, messageId: string, emoji: string) => {
+    if (!state.currentUser) return;
+    
+    try {
+      const messages = state.messages[chatId] || [];
+      const message = messages.find(m => m.id === messageId);
+      
+      if (message) {
+        const existingReaction = message.reactions.find(r => r.userId === state.currentUser!.id && r.emoji === emoji);
+        
+        const updatedReactions = existingReaction
+          ? message.reactions.filter(r => !(r.userId === state.currentUser!.id && r.emoji === emoji))
+          : [...message.reactions, { emoji, userId: state.currentUser.id, userName: state.currentUser.name }];
+        
+        const updatedMessage = { ...message, reactions: updatedReactions };
+        
+        // Update locally
+        dispatch({ type: 'UPDATE_MESSAGE', payload: { chatId, message: updatedMessage } });
+        
+        // Try to add reaction via API
+        try {
+          await dataServiceAPI.addReaction(messageId, emoji);
+        } catch (error) {
+          console.error('Failed to sync reaction:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to add reaction:', error);
+    }
+  };
+
+  const setActiveChat = useCallback((chatId: string | null) => {
+    dispatch({ type: 'SET_ACTIVE_CHAT', payload: chatId });
+    if (chatId) {
+      markChatAsRead(chatId);
+      
+      // Join the chat room in Socket.IO
+      const socket = dataServiceAPI.getSocket();
+      if (socket) {
+        socket.emit('join-chat', chatId);
+        logger.socket('Joined chat room', { chatId }, 'AppContext');
+      }
+      
+      // Load messages for this chat if not loaded
+      if (!state.messages[chatId]) {
+        dataServiceAPI.getMessages(chatId).then(messages => {
+          dispatch({ type: 'SET_MESSAGES', payload: { ...state.messages, [chatId]: messages } });
+        }).catch(error => {
+          logger.error('Failed to load messages', { error: error.message, chatId }, 'AppContext');
+          // Set empty array to prevent loading again
+          dispatch({ type: 'SET_MESSAGES', payload: { ...state.messages, [chatId]: [] } });
+        });
+      }
+    }
+  }, [state.messages]);
+
+  const setCurrentScreen = (screen: AppScreen) => {
+    dispatch({ type: 'SET_CURRENT_SCREEN', payload: screen });
+  };
+
+  const toggleDarkMode = () => {
+    const newDarkMode = !state.darkMode;
+    localStorage.setItem('iib-chat-theme', newDarkMode ? 'dark' : 'light');
+    dispatch({ type: 'SET_DARK_MODE', payload: newDarkMode });
+  };
+
+  const updateUserSettings = async (settings: Partial<UserSettings>) => {
+    if (!state.currentUser) return;
+    
+    try {
+      // Update settings via API
+      const updatedSettings = await dataServiceAPI.updateUserSettings(settings);
+      
+      dispatch({ type: 'SET_USER_SETTINGS', payload: { userId: state.currentUser.id, settings: updatedSettings } });
+
+      // Apply theme changes immediately
+      if (settings.theme) {
+        const isDark = settings.theme === 'dark' || 
+          (settings.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        
+        if (isDark !== state.darkMode) {
+          dispatch({ type: 'SET_DARK_MODE', payload: isDark });
+        }
+      }
+
+      // Apply status changes immediately
+      if (settings.status && state.currentUser) {
+        const updatedUser = { ...state.currentUser, status: settings.status, lastSeen: new Date() };
+        await dataServiceAPI.updateUser(updatedUser.id, { status: settings.status });
+        dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+      }
+    } catch (error) {
+      console.error('Failed to update user settings:', error);
+    }
+  };
+
+  const updateUserProfile = async (name: string, avatarFile: File | null) => {
+    if (!state.currentUser) return;
+
+    try {
+      let updatedUser: User = state.currentUser;
+
+      // Upload avatar if a new file is provided
+      if (avatarFile) {
+        updatedUser = await dataServiceAPI.uploadAvatar(avatarFile);
+      }
+
+      // Update name if it has changed
+      if (name !== updatedUser.name) {
+        updatedUser = await dataServiceAPI.updateUser(state.currentUser.id, { name });
+      }
+
+      // Update local storage and state
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+      
+      // Update the user in the users list as well
+      const updatedUsers = state.users.map(user => 
+        user.id === updatedUser.id ? updatedUser : user
+      );
+      dispatch({ type: 'SET_USERS', payload: updatedUsers });
+
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      dispatch({ type: 'SET_NOTIFICATION_PERMISSION', payload: permission === 'granted' });
+    }
+  };
+
+  const updateUserStatus = async (status: 'online' | 'offline' | 'away' | 'busy') => {
+    if (!state.currentUser) return;
+    
+    try {
+      const updatedUser = await dataServiceAPI.updateUser(state.currentUser.id, { status, lastSeen: new Date() });
+      dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+    } catch (error) {
+      console.error('Failed to update user status:', error);
+    }
+  };
+
+  const performSearch = async (query: string) => {
+    if (!query) {
+      dispatch({ type: 'SET_SEARCH_RESULTS', payload: [] });
+      return;
+    }
+    try {
+      const results = await dataServiceAPI.searchMessages(query);
+      dispatch({ type: 'SET_SEARCH_RESULTS', payload: results });
+      setCurrentScreen('search-results');
+    } catch (error) {
+      console.error("Search failed:", error);
+      toast.error("Search failed. Please try again.");
+    }
+  };
+
+  const searchMessages = (query: string) => {
+    // This function now just triggers the search
+    performSearch(query);
+  };
+
+  const archiveChat = async (chatId: string) => {
+    try {
+      const chat = state.chats.find(c => c.id === chatId);
+      if (chat) {
+        const updatedChat = { ...chat, isArchived: true };
+        
+        // Update locally
+        dispatch({ type: 'UPDATE_CHAT', payload: updatedChat });
+      }
+    } catch (error) {
+      console.error('Failed to archive chat:', error);
+    }
+  };
+
+  const markChatAsRead = async (chatId: string) => {
+    try {
+      const chat = state.chats.find(c => c.id === chatId);
+      if (chat && chat.unreadCount > 0) {
+        const updatedChat = { ...chat, unreadCount: 0 };
+        
+        // Update locally
+        dispatch({ type: 'UPDATE_CHAT', payload: updatedChat });
+      }
+    } catch (error) {
+      console.error('Failed to mark chat as read:', error);
+    }
+  };
+
+  const approvePendingUser = async (userId: string) => {
+    try {
+      // Use the correct API function name
+      await dataServiceAPI.approveUser(userId);
+      
+      // Refresh the data from server
+      const [updatedUsers, updatedPendingUsers] = await Promise.all([
+        dataServiceAPI.getUsers(),
+        dataServiceAPI.getPendingUsers()
+      ]);
+      
+      dispatch({ type: 'SET_USERS', payload: updatedUsers });
+      dispatch({ type: 'SET_PENDING_USERS', payload: updatedPendingUsers });
+    } catch (error) {
+      console.error('Failed to approve user:', error);
+    }
+  };
+
+  const rejectPendingUser = async (userId: string) => {
+    try {
+      // Use the correct API function name
+      await dataServiceAPI.rejectUser(userId);
+      
+      // Refresh the pending users list from server
+      const updatedPendingUsers = await dataServiceAPI.getPendingUsers();
+      dispatch({ type: 'SET_PENDING_USERS', payload: updatedPendingUsers });
+    } catch (error) {
+      console.error('Failed to reject user:', error);
+    }
+  };
+
+  const getPendingUsersCount = () => {
+    return state.pendingUsers.length;
+  };
+  
+  const updateUserRole = async (userId: string, newRole: 'manager' | 'employee') => {
+    try {
+      const user = state.users.find(u => u.id === userId);
+      if (user && user.email !== 'admin@app.com') { // Prevent changing admin role
+        const updatedUser = await dataServiceAPI.updateUserRole(userId, newRole);
+        console.log('Role updated successfully:', updatedUser);
+        dispatch({ type: 'UPDATE_USER', payload: updatedUser });
+      }
+    } catch (error) {
+      console.error('Failed to update user role:', error);
+      throw error; // Re-throw to handle in component
+    }
+  };
+
+  const removeUser = async (userId: string) => {
+    try {
+      const user = state.users.find(u => u.id === userId);
+      if (user && user.email !== 'admin@app.com' && user.email !== 'iibadmin@iib.com') { // Prevent removing admin
+        await dataServiceAPI.deleteUser(userId);
+        dispatch({ type: 'SET_USERS', payload: state.users.filter(u => u.id !== userId) });
+      }
+    } catch (error) {
+      console.error('Failed to remove user:', error);
+    }
+  };
+  
+  const createDirectChat = async (otherUserId: string) => {
+    if (!state.currentUser) return;
+    
+    try {
+      // Check if direct chat already exists
+      const existingChat = state.chats.find(chat => 
+        chat.type === 'direct' && 
+        chat.participants.includes(state.currentUser!.id) && 
+        chat.participants.includes(otherUserId)
+      );
+      
+      if (existingChat) {
+        // Chat exists, just activate it
+        setActiveChat(existingChat.id);
+        return;
+      }
+      
+      // Create new direct chat
+      const otherUser = state.users.find(u => u.id === otherUserId);
+      if (!otherUser) return;
+      
+      // Use the API to create direct chat
+      const newChat = await dataServiceAPI.createDirectChat(otherUserId, otherUser.name);
+      
+      // Refresh chats
+      const updatedChats = await dataServiceAPI.getChats();
+      dispatch({ type: 'SET_CHATS', payload: updatedChats });
+      
+      // Activate the new chat
+      setActiveChat(newChat.id);
+      
+    } catch (error) {
+      console.error('Failed to create direct chat:', error);
+    }
+  };
+
+  const createGroupChat = async (name: string, participants: string[]) => {
+    if (!state.currentUser) return;
+    
+    try {
+      // Use the API to create group chat
+      const newChat = await dataServiceAPI.createGroupChat(name, participants);
+      
+      // Refresh chats
+      const updatedChats = await dataServiceAPI.getChats();
+      dispatch({ type: 'SET_CHATS', payload: updatedChats });
+      
+      // Activate the new chat
+      setActiveChat(newChat.id);
+      
+    } catch (error) {
+      console.error('Failed to create group chat:', error);
+      throw error;
+    }
+  };
+
+  const openModal = (content: React.ReactNode) => {
+    dispatch({ type: 'OPEN_MODAL', payload: content });
+  };
+
+  const closeModal = () => {
+    dispatch({ type: 'CLOSE_MODAL' });
+  };
+
+  const loadOverseenChats = async () => {
+    if (state.currentUser?.role !== 'manager') return;
+    try {
+      const chats = await dataServiceAPI.getDirectChatsForOversight();
+      dispatch({ type: 'SET_OVERSEEN_CHATS', payload: chats });
+    } catch (error) {
+      console.error("Failed to load chats for oversight:", error);
+    }
+  };
+
+  const loadMessagesForOversight = async (chatId: string) => {
+    if (state.currentUser?.role !== 'manager') return;
+    try {
+      const messages = await dataServiceAPI.getMessagesForOversight(chatId);
+      dispatch({ type: 'SET_OVERSEEN_MESSAGES', payload: { chatId, messages } });
+    } catch (error) {
+      console.error(`Failed to load messages for oversight chat ${chatId}:`, error);
+    }
+  };
+  
+  const setActiveOversightChat = (chat: Chat | null) => {
+    dispatch({ type: 'SET_ACTIVE_OVERSIGHT_CHAT', payload: chat });
+    if (chat) {
+      loadMessagesForOversight(chat.id);
+    }
+  };
+
+  const markMessagesAsRead = async (chatId: string, messageIds: string[]) => {
+    if (messageIds.length === 0) return;
+    try {
+      await dataServiceAPI.markMessagesAsRead(chatId, messageIds);
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error);
+    }
+  };
+
+  const getChatDisplayName = (chat: Chat) => {
+    if (chat.type === 'direct') {
+      const otherUser = state.users.find(u => chat.participants.some(p => p === u.id && u.id !== state.currentUser?.id));
+      return otherUser?.name || 'Direct Chat';
+    }
+    return chat.name;
+  };
+
+  const deleteChat = async (chatId: string) => {
+    if (!state.currentUser || state.currentUser.role !== 'manager') return;
+    
+    try {
+      await dataServiceAPI.deleteChat(chatId);
+      
+      // Remove chat from state
+      dispatch({ type: 'SET_CHATS', payload: state.chats.filter(c => c.id !== chatId) });
+      
+      // Remove messages from state
+      const newMessages = { ...state.messages };
+      delete newMessages[chatId];
+      dispatch({ type: 'SET_MESSAGES', payload: newMessages });
+      
+      // If this was the active chat, clear it
+      if (state.activeChat === chatId) {
+        dispatch({ type: 'SET_ACTIVE_CHAT', payload: null });
+      }
+      
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+    }
+  };
+
+  const clearChatMessages = async (chatId: string) => {
+    if (!state.currentUser || state.currentUser.role !== 'manager') return;
+    
+    try {
+      const result = await dataServiceAPI.clearChatMessages(chatId);
+      
+      // Clear messages from state
+      dispatch({ type: 'SET_MESSAGES', payload: { ...state.messages, [chatId]: [] } });
+      
+      // Update chat's last message
+      const updatedChats = state.chats.map(chat => 
+        chat.id === chatId 
+          ? { ...chat, lastMessage: undefined }
+          : chat
+      );
+      dispatch({ type: 'SET_CHATS', payload: updatedChats });
+      
+      return result;
+    } catch (error) {
+      console.error('Failed to clear chat messages:', error);
+      throw error;
+    }
+  };
+
+  // Task Management Functions
+  const fetchTasks = async () => {
+    try {
+      const response = await dataServiceAPI.getTasks();
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { tasks: response.data } });
+      }
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error);
+      // Set empty array to prevent infinite retries
+      dispatch({ type: 'SET_STATE', payload: { tasks: [] } });
+    }
+  };
+
+  const fetchTeams = async () => {
+    try {
+      const response = await dataServiceAPI.getTeams();
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { teams: response.data } });
+      }
+    } catch (error) {
+      console.error('Failed to fetch teams:', error);
+      // Set empty array to prevent infinite retries
+      dispatch({ type: 'SET_STATE', payload: { teams: [] } });
+    }
+  };
+
+  const createTask = async (taskData: any) => {
+    try {
+      const response = await dataServiceAPI.createTask(taskData);
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { tasks: [...state.tasks, response.data] } });
+        toast.success('Task created successfully');
+      }
+    } catch (error) {
+      console.error('Failed to create task:', error);
+      toast.error('Failed to create task');
+      throw error;
+    }
+  };
+
+  const updateTask = async (taskId: string, taskData: any) => {
+    try {
+      const response = await dataServiceAPI.updateTask(taskId, taskData);
+      if (response.success) {
+        const updatedTasks = state.tasks.map(task => 
+          task.id === taskId ? response.data : task
+        );
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+        toast.success('Task updated successfully');
+      }
+    } catch (error) {
+      console.error('Failed to update task:', error);
+      toast.error('Failed to update task');
+      throw error;
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    try {
+      await dataServiceAPI.deleteTask(taskId);
+      const updatedTasks = state.tasks.filter(task => task.id !== taskId);
+      dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      toast.success('Task deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      toast.error('Failed to delete task');
+      throw error;
+    }
+  };
+
+  const addTaskComment = async (taskId: string, content: string) => {
+    try {
+      const response = await dataServiceAPI.addTaskComment(taskId, content);
+      if (response.success) {
+        const updatedTasks = state.tasks.map(task => 
+          task.id === taskId ? response.data : task
+        );
+        dispatch({ type: 'SET_STATE', payload: { tasks: updatedTasks } });
+      }
+    } catch (error) {
+      console.error('Failed to add comment:', error);
+      toast.error('Failed to add comment');
+      throw error;
+    }
+  };
+
+  // Team Management Functions
+  const createTeam = async (teamData: any) => {
+    try {
+      const response = await dataServiceAPI.createTeam(teamData);
+      if (response.success) {
+        dispatch({ type: 'SET_STATE', payload: { teams: [...state.teams, response.data] } });
+        toast.success('Team created successfully');
+      }
+    } catch (error) {
+      console.error('Failed to create team:', error);
+      toast.error('Failed to create team');
+      throw error;
+    }
+  };
+
+  const updateTeam = async (teamId: string, teamData: any) => {
+    try {
+      const response = await dataServiceAPI.updateTeam(teamId, teamData);
+      if (response.success) {
+        const updatedTeams = state.teams.map(team => 
+          team.id === teamId ? response.data : team
+        );
+        dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+        toast.success('Team updated successfully');
+      }
+    } catch (error) {
+      console.error('Failed to update team:', error);
+      toast.error('Failed to update team');
+      throw error;
+    }
+  };
+
+  const deleteTeam = async (teamId: string) => {
+    try {
+      await dataServiceAPI.deleteTeam(teamId);
+      const updatedTeams = state.teams.filter(team => team.id !== teamId);
+      dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+      toast.success('Team deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete team:', error);
+      toast.error('Failed to delete team');
+      throw error;
+    }
+  };
+
+  const addTeamMember = async (teamId: string, userId: string, role: 'member' | 'lead') => {
+    try {
+      const response = await dataServiceAPI.addTeamMember(teamId, userId, role);
+      if (response.success) {
+        const updatedTeams = state.teams.map(team => 
+          team.id === teamId ? response.data : team
+        );
+        dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+        toast.success('Team member added successfully');
+      }
+    } catch (error) {
+      console.error('Failed to add team member:', error);
+      toast.error('Failed to add team member');
+      throw error;
+    }
+  };
+
+  const removeTeamMember = async (teamId: string, userId: string) => {
+    try {
+      const response = await dataServiceAPI.removeTeamMember(teamId, userId);
+      if (response.success) {
+        const updatedTeams = state.teams.map(team => 
+          team.id === teamId ? response.data : team
+        );
+        dispatch({ type: 'SET_STATE', payload: { teams: updatedTeams } });
+        toast.success('Team member removed successfully');
+      }
+    } catch (error) {
+      console.error('Failed to remove team member:', error);
+      toast.error('Failed to remove team member');
+      throw error;
+    }
+  };
+
+  // Call Management Functions
+  const startCall = async (chatId: string, callType: 'audio' | 'video', participants: string[]) => {
+    try {
+      const socket = dataServiceAPI.getSocket();
+      if (socket) {
+        await webrtcService.initialize(socket);
+        await webrtcService.startCall(chatId, callType, participants);
+        toast.success(`${callType === 'video' ? 'Video' : 'Voice'} call started`);
+      }
+    } catch (error) {
+      console.error('Failed to start call:', error);
+      toast.error('Failed to start call');
+      throw error;
+    }
+  };
+
+  const endCall = () => {
+    webrtcService.endCall();
+    toast.success('Call ended');
+  };
+
+  const answerCall = async (callId: string, chatId: string) => {
+    try {
+      const socket = dataServiceAPI.getSocket();
+      if (socket) {
+        await webrtcService.initialize(socket);
+        await webrtcService.joinCall(callId, chatId);
+        toast.success('Call answered');
+      }
+    } catch (error) {
+      console.error('Failed to answer call:', error);
+      toast.error('Failed to answer call');
+      throw error;
+    }
+  };
+
+  const rejectCall = (callId: string) => {
+    const socket = dataServiceAPI.getSocket();
+    if (socket) {
+      socket.emit('call:reject', { callId });
+      toast.success('Call rejected');
+    }
+  };
+
+  const contextValue: AppContextValue = {
+    ...state,
+    login,
+    logout,
+    register,
+    sendMessage,
+    uploadFile,
+    editMessage,
+    deleteMessage,
+    addReaction,
+    setActiveChat,
+    setCurrentScreen,
+    setReplyingTo: setReplyingTo,
+    cancelReply,
+    replyingTo,
+    toggleDarkMode,
+    updateUserSettings,
+    updateUserProfile,
+    requestNotificationPermission,
+    updateUserStatus,
+    searchMessages,
+    archiveChat,
+    markChatAsRead,
+    approvePendingUser,
+    rejectPendingUser,
+    getPendingUsersCount,
+    updateUserRole,
+    removeUser,
+    createDirectChat,
+    createGroupChat,
+    isModalOpen: state.isModalOpen,
+    modalContent: state.modalContent,
+    openModal,
+    closeModal,
+    overseenChats: state.overseenChats,
+    overseenMessages: state.overseenMessages,
+    loadOverseenChats,
+    loadMessagesForOversight,
+    activeOversightChat: state.activeOversightChat,
+    setActiveOversightChat,
+    typingUsers: state.typingUsers,
+    markMessagesAsRead,
+    performSearch,
+    searchResults: state.searchResults,
+    getChatDisplayName,
+    deleteChat,
+    clearChatMessages,
+    fetchTasks,
+    fetchTeams,
+    createTask,
+    updateTask,
+    deleteTask,
+    addTaskComment,
+    createTeam,
+    updateTeam,
+    deleteTeam,
+    addTeamMember,
+    removeTeamMember,
+    startCall,
+    endCall,
+    answerCall,
+    rejectCall,
+  };
+
+  return (
+    <AppContext.Provider value={contextValue}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+// Export useApp hook with consistent naming for Fast Refresh compatibility
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};

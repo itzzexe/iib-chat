@@ -1,0 +1,323 @@
+/* Custom Calendar Styles */
+.rbc-calendar {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  direction: ltr;
+}
+
+.rbc-toolbar {
+  margin-bottom: 1rem;
+}
+
+.rbc-toolbar-label {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.rbc-btn-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.rbc-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  background-color: white;
+  color: #374151;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rbc-btn:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.rbc-btn.rbc-active {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.rbc-event {
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rbc-event:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.rbc-event-content {
+  color: white;
+  font-weight: 500;
+}
+
+.rbc-event.rbc-selected {
+  background-color: #1d4ed8 !important;
+}
+
+.rbc-month-view {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.rbc-month-header {
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.rbc-header {
+  padding: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+  border-right: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.rbc-header:last-child {
+  border-right: none;
+}
+
+.rbc-month-row {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.rbc-month-row:last-child {
+  border-bottom: none;
+}
+
+.rbc-date-cell {
+  padding: 0.25rem;
+  border-right: 1px solid #e5e7eb;
+  min-height: 80px;
+}
+
+.rbc-date-cell:last-child {
+  border-right: none;
+}
+
+.rbc-off-range-bg {
+  background-color: #f9fafb;
+}
+
+.rbc-off-range {
+  color: #9ca3af;
+}
+
+.rbc-today {
+  background-color: #eff6ff;
+}
+
+.rbc-day-bg.rbc-today {
+  background-color: #eff6ff;
+}
+
+.rbc-week-view {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.rbc-time-header {
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.rbc-time-content {
+  border-top: 1px solid #e5e7eb;
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.rbc-time-slot {
+  border-top: 1px solid #f3f4f6;
+}
+
+.rbc-day-slot {
+  border-right: 1px solid #e5e7eb;
+}
+
+.rbc-day-slot:last-child {
+  border-right: none;
+}
+
+.rbc-time-gutter {
+  background-color: #f9fafb;
+  border-right: 1px solid #e5e7eb;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.rbc-day-view {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Priority Colors */
+.priority-high {
+  background-color: #ef4444 !important;
+}
+
+.priority-medium {
+  background-color: #f59e0b !important;
+}
+
+.priority-low {
+  background-color: #10b981 !important;
+}
+
+.priority-urgent {
+  background-color: #dc2626 !important;
+}
+
+/* Status Borders */
+.status-pending {
+  border-left: 4px solid #f59e0b !important;
+}
+
+.status-in-progress,
+.status-in_progress {
+  border-left: 4px solid #3b82f6 !important;
+}
+
+.status-completed {
+  border-left: 4px solid #10b981 !important;
+}
+
+.status-cancelled {
+  border-left: 4px solid #6b7280 !important;
+}
+
+/* Overdue Animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom Event Styling */
+.custom-event {
+  display: flex;
+  flex-direction: column;
+  padding: 0.125rem;
+}
+
+.custom-event-title {
+  font-weight: 600;
+  font-size: 0.75rem;
+  line-height: 1;
+  margin-bottom: 0.125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-event-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  opacity: 0.9;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .rbc-toolbar {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .rbc-toolbar-label {
+    font-size: 1rem;
+  }
+  
+  .rbc-btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+  }
+  
+  .rbc-event {
+    font-size: 0.625rem;
+    padding: 0.0625rem 0.125rem;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .rbc-calendar {
+    background-color: #1f2937;
+    color: #f9fafb;
+  }
+  
+  .rbc-month-view,
+  .rbc-week-view,
+  .rbc-day-view {
+    border-color: #374151;
+  }
+  
+  .rbc-month-header,
+  .rbc-time-header {
+    background-color: #374151;
+    border-color: #4b5563;
+  }
+  
+  .rbc-header {
+    color: #f9fafb;
+    border-color: #4b5563;
+  }
+  
+  .rbc-date-cell {
+    border-color: #4b5563;
+  }
+  
+  .rbc-off-range-bg {
+    background-color: #374151;
+  }
+  
+  .rbc-off-range {
+    color: #6b7280;
+  }
+  
+  .rbc-today {
+    background-color: #1e3a8a;
+  }
+  
+  .rbc-time-gutter {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #9ca3af;
+  }
+  
+  .rbc-timeslot-group {
+    border-color: #4b5563;
+  }
+  
+  .rbc-time-slot {
+    border-color: #4b5563;
+  }
+  
+  .rbc-day-slot {
+    border-color: #4b5563;
+  }
+} 
